@@ -2,7 +2,26 @@
 title: "Insurance customer churn prediction"
 author: "Nico Henzel"
 date: '2022-04-25'
-output: html_document
+params: 
+ institute: "HdM Stuttgart"
+ country: "Germany"
+ year: "2022"
+output:
+ html_document: 
+  css: style.css # define your own css
+  df_print: paged #  tables are printed as HTML tables 
+  highlight: default # syntax highlighting style 
+  number_sections: yes # numbering of sections
+  theme: paper # style option
+  fig_height: 4 # figure height
+  fig_width: 8 # figure width
+  toc: yes # table of content
+  toc_float: 
+    collapsed: false # show full toc
+    smooth_scroll: true # toc scrolling behavior
+  # FOOTER erstellen mit Markdown - Tutorial ansehen
+  #  includes:
+  #   after_body: footer.html # include footer
 ---
 
 ```{r setup, include=FALSE}
