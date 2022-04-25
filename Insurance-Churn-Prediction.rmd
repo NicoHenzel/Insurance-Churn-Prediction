@@ -18,359 +18,383 @@ library(tidymodels)
 library(xgboost)
 ```
 
+# Plan
+
+## Use Case
+
+## Relevant Features
+
+## Metrics
+
 # Data
 
 ## Import
 
-```{r}
-LINK <- "https://raw.githubusercontent.com/kirenz/datasets/master/housing_unclean.csv"
+Load training and test dataset (provided from kaggle - see *Plan*)
 
-df <- read_csv(LINK)
+```{r train-dataset}
+LINK_train <- "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Train.csv"
+
+df_train <- read_csv(LINK_train)
+```
+
+```{r test-dataset}
+LINK_test <- "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Test.csv"
+
+df_test <- read_csv(LINK_test)
 ```
 
 ## Overview
+Look at the first rows from each dataframe.
+This gives us 3 informations:
 
-```{r}
-df 
+1. The datatype for every variable (feature column) is double - although there are variables that only hold integer values
+
+2. 
+
+```{r glimpse-train}
+glimpse(df_train)
+dim(df_train)
 ```
 
-```{r}
-# Zeige den Anfang der Tabelle df
-glimpse(df)
+```{r glimpse-test}
+glimpse(df_test)
+dim(df_test)
+
 ```
 
-```{r}
-## Zeíge nur die ersten 4 inhalte der Tabelle an
-df %>% 
-  slice_head(n=4) %>% 
-  gt()
-```
+<!-- ```{r} -->
+<!-- ## Zeíge nur die ersten 4 inhalte der Tabelle an -->
+<!-- df %>% -->
+<!--   slice_head(n=4) %>% -->
+<!--   gt() -->
+<!-- ``` -->
 
 
 
 ## Clean data
-```{r}
-## Verändere die Variablen, Entferne Inhalte im String
-df <-
-  df %>% 
-  mutate(
-         housing_median_age = str_remove_all(housing_median_age,"[years]"),
-         median_house_value = str_remove_all(median_house_value,"[$]")
-         )
-```
+<!-- ```{r} -->
+<!-- ## Verändere die Variablen, Entferne Inhalte im String -->
+<!-- df <- -->
+<!--   df %>% -->
+<!--   mutate( -->
+<!--          housing_median_age = str_remove_all(housing_median_age,"[years]"), -->
+<!--          median_house_value = str_remove_all(median_house_value,"[$]") -->
+<!--          ) -->
+<!-- ``` -->
 
-```{r}
-# Verändere den Typ der Variablen
-df <-
-  df %>% 
-  mutate(
-         housing_median_age = as.numeric(housing_median_age),
-         median_house_value = as.numeric(median_house_value)
-         )
-```
+<!-- ```{r} -->
+<!-- # Verändere den Typ der Variablen -->
+<!-- df <- -->
+<!--   df %>% -->
+<!--   mutate( -->
+<!--          housing_median_age = as.numeric(housing_median_age), -->
+<!--          median_house_value = as.numeric(median_house_value) -->
+<!--          ) -->
+<!-- ``` -->
 
 
 ### Missing values
-```{r}
-vis_dat(df)
-```
+<!-- ```{r} -->
+<!-- vis_dat(df) -->
+<!-- ``` -->
 
-```{r}
-vis_miss(df, sort_miss = TRUE)
-```
+<!-- ```{r} -->
+<!-- vis_miss(df, sort_miss = TRUE) -->
+<!-- ``` -->
 
-```{r}
-# Zeige die Fehlende Werte als Absolute Zahlen
-is.na(df) %>% 
-  colSums()
-```
+<!-- ```{r} -->
+<!-- # Zeige die Fehlende Werte als Absolute Zahlen -->
+<!-- is.na(df) %>% -->
+<!--   colSums() -->
+<!-- ``` -->
 
 ### Data stats
 
-```{r}
-skim(df)
-```
+<!-- ```{r} -->
+<!-- skim(df) -->
+<!-- ``` -->
 
-### Create new variable
+<!-- ### Create new variable -->
 
-```{r}
-df <-
-  df %>% 
-  mutate(rooms_per_household = total_rooms/households,
-         bedrooms_per_room = total_bedrooms/total_rooms,
-         population_per_household = population/households)
-```
+<!-- ```{r} -->
+<!-- df <- -->
+<!--   df %>% -->
+<!--   mutate(rooms_per_household = total_rooms/households, -->
+<!--          bedrooms_per_room = total_bedrooms/total_rooms, -->
+<!--          population_per_household = population/households) -->
+<!-- ``` -->
 
 ## Data exploration
 
 
-```{r}
-# list of all numerical data
-list_num <- 
-  df %>% 
-  select(where(is.numeric)) %>% 
-  names()
+<!-- ```{r} -->
+<!-- # list of all numerical data -->
+<!-- list_num <- -->
+<!--   df %>% -->
+<!--   select(where(is.numeric)) %>% -->
+<!--   names() -->
 
-list_num
-```
+<!-- list_num -->
+<!-- ``` -->
 
 ## Data split
 
-```{r}
+<!-- ```{r} -->
 
-set.seed(42)
+<!-- set.seed(42) -->
 
-# Teile die Daten in trainings und test Set auf
-data_split <- initial_split(df,
-                            prop = 3/4,
-                            strata = median_house_value,
-                            breaks = 4)
+<!-- # Teile die Daten in trainings und test Set auf -->
+<!-- data_split <- initial_split(df, -->
+<!--                             prop = 3/4, -->
+<!--                             strata = median_house_value, -->
+<!--                             breaks = 4) -->
 
-train_data <- training(data_split)
-test_data <- testing(data_split)
+<!-- train_data <- training(data_split) -->
+<!-- test_data <- testing(data_split) -->
 
-```
+<!-- ``` -->
 
 ## Data exploration
 
-```{r}
-data_explore <- train_data
-```
+<!-- ```{r} -->
+<!-- data_explore <- train_data -->
+<!-- ``` -->
 
-```{r}
-# Gewichtung der Haushalte, die in Kategorien eingeteilt sind nach Nähe zum Meer
-# Gibt aus, wie viele Haushalte in welcher Kategorie liegen
+<!-- ```{r} -->
+<!-- # Gewichtung der Haushalte, die in Kategorien eingeteilt sind nach Nähe zum Meer -->
+<!-- # Gibt aus, wie viele Haushalte in welcher Kategorie liegen -->
 
-data_explore %>% 
-  count(ocean_proximity,
-        wt = households,
-        name = "Sum") %>% 
-  gt()
+<!-- data_explore %>% -->
+<!--   count(ocean_proximity, -->
+<!--         wt = households, -->
+<!--         name = "Sum") %>% -->
+<!--   gt() -->
 
-```
+<!-- ``` -->
 
-```{r}
+<!-- ```{r} -->
 # Daten Plotten
-ggplot(data = data_explore, aes(x=longitude, y=latitude)) + 
-  geom_point(color = "cornflowerblue")
+<!-- ggplot(data = data_explore, aes(x=longitude, y=latitude)) + -->
+<!--   geom_point(color = "cornflowerblue") -->
 
-```
+<!-- ``` -->
 
 ## List of features
 
 
-```{r}
+<!-- ```{r} -->
 
-mean_population <-
-mean(data_explore$population)
+<!-- mean_population <- -->
+<!-- mean(data_explore$population) -->
 
-```
+<!-- ``` -->
 
-```{r}
-data_explore <-
-data_explore %>% 
-  mutate(population_cat = case_when(population < mean_population ~ "low",
-                                    TRUE ~ "high"),
-         population_cat = as.factor(population_cat),
-         ocean_proximity = as.factor(ocean_proximity)
-         )
-```
+<!-- ```{r} -->
+<!-- data_explore <- -->
+<!-- data_explore %>% -->
+<!--   mutate(population_cat = case_when(population < mean_population ~ "low", -->
+<!--                                     TRUE ~ "high"), -->
+<!--          population_cat = as.factor(population_cat), -->
+<!--          ocean_proximity = as.factor(ocean_proximity) -->
+<!--          ) -->
+<!-- ``` -->
 
-```{r}
-# Tabellenspalten alphabetisch anordnen
-df_new <-
-df_new %>% select(order(colnames(.)))
+<!-- ```{r} -->
+<!-- # Tabellenspalten alphabetisch anordnen -->
+<!-- df_new <- -->
+<!-- df_new %>% select(order(colnames(.))) -->
 
-```
+<!-- ``` -->
 
 
-```{r}
-# Erstelle eine Feature liste, die keine numerischen Werte enthält
-feat_cat <-
-  data_explore %>% 
-  select(!where(is.numeric)) %>% 
-  names()
+<!-- ```{r} -->
+<!-- # Erstelle eine Feature liste, die keine numerischen Werte enthält -->
+<!-- feat_cat <- -->
+<!--   data_explore %>% -->
+<!--   select(!where(is.numeric)) %>% -->
+<!--   names() -->
 
-```
+<!-- ``` -->
 
-```{r}
-# Spalte entfernen
-# Nimm aus dem Datensatz data_explore die Variable housing_median_age_new und setze sie NULL
+<!-- ```{r} -->
+<!-- # Spalte entfernen -->
+<!-- # Nimm aus dem Datensatz data_explore die Variable housing_median_age_new und setze sie NULL -->
 
-data_explore$housing_median_age_new <- NULL
+<!-- data_explore$housing_median_age_new <- NULL -->
 
-```
+<!-- ``` -->
 
-```{r}
-# Bar Plot erstellen für kategorische / numerische Variablen
-# Loop in Feature Liste
-# Gehe über alle Elemente in Liste feat_cat und erstelle eine Abbildung von der Tabelle data_explore, mit der Bedingung, dass x = ein Element aus der feat_at Liste ist
-# plotte p im Anschluss
-for (i in feat_cat){
-  
-  p <- ggplot(data_explore, aes_string(x=i)) +
-  geom_bar()
-  
-  plot(p)
-  }
+<!-- ```{r} -->
+<!-- # Bar Plot erstellen für kategorische / numerische Variablen -->
+<!-- # Loop in Feature Liste -->
+<!-- # Gehe über alle Elemente in Liste feat_cat und erstelle eine Abbildung von der Tabelle data_explore, mit der Bedingung, dass x = ein Element aus der feat_at Liste ist -->
+<!-- # plotte p im Anschluss -->
+<!-- for (i in feat_cat){ -->
 
-```
+<!--   p <- ggplot(data_explore, aes_string(x=i)) + -->
+<!--   geom_bar() -->
 
-```{r}
-# Boxplot für die Abhängige Variable median house value erstellen
+<!--   plot(p) -->
+<!--   } -->
 
-ggplot(data = data_explore, aes(x=population_cat, y=median_house_value)) + 
-  geom_boxplot()
-```
+<!-- ``` -->
 
-```{r}
-# Abbildung der Korrelationskoeffizienten von zwei Variablen 
-# Ermöglicht die Darstellung von Abhängigkeiten und Interpretation der Beziehung von Variablen zueinander
-data_explore %>% 
-  select(median_house_value, housing_median_age, bedrooms_per_room) %>% 
-  ggpairs()
+<!-- ```{r} -->
+<!-- # Boxplot für die Abhängige Variable median house value erstellen -->
 
-```
+<!-- ggplot(data = data_explore, aes(x=population_cat, y=median_house_value)) + -->
+<!--   geom_boxplot() -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- # Abbildung der Korrelationskoeffizienten von zwei Variablen -->
+<!-- # Ermöglicht die Darstellung von Abhängigkeiten und Interpretation der Beziehung von Variablen zueinander -->
+<!-- data_explore %>% -->
+<!--   select(median_house_value, housing_median_age, bedrooms_per_room) %>% -->
+<!--   ggpairs() -->
+
+<!-- ``` -->
 
 ## Data pipeline
 
-```{r}
-# Erstelle ein Rezept für die Modelle, wie mit den Daten umgegangen werden soll
-# Modellierung: Zuerst wird die y (Abhängige) Variable geschrieben, dann ~, dann kommen die unabhängigen Variablen (mit einem . können alle anderen Variablen genutzt werden)
-# Die Variablen werden folgendermaßen ausgewählt:
-# y Variable ist die, die betrachtet werden soll durch das Modell (welche soll ausgewertet werden, abghängig von den anderen Variablen)
-# Die restlichen Variablen werden mitgegeben, die aus unserer Sicht die Ergebnis Variable (y) am meisten Beeinflussen 
+<!-- ```{r} -->
+<!-- # Erstelle ein Rezept für die Modelle, wie mit den Daten umgegangen werden soll -->
+<!-- # Modellierung: Zuerst wird die y (Abhängige) Variable geschrieben, dann ~, dann kommen die unabhängigen Variablen (mit einem . können alle anderen Variablen genutzt werden) -->
+<!-- # Die Variablen werden folgendermaßen ausgewählt: -->
+<!-- # y Variable ist die, die betrachtet werden soll durch das Modell (welche soll ausgewertet werden, abghängig von den anderen Variablen) -->
+<!-- # Die restlichen Variablen werden mitgegeben, die aus unserer Sicht die Ergebnis Variable (y) am meisten Beeinflussen -->
 
-df_rec <-
-  recipe(median_house_value ~ housing_median_age + rooms_per_household + ocean_proximity, data = train_data) %>%
-  # Imputation (fehlende Variablen werden durch Median ersetzt) für alle numerischen, außer die Ergebnisvariable (y)
-  # Imputationen sollten mit Vorsicht genutzt werden, da viele 
-  step_impute_median(all_numeric(), -all_outcomes()) %>%
-  # Imputation (fehlende Daten werden mit Mode ersetzt) für alle nominalen Prädikatoren (kategorialen Variablen)
-  step_impute_mode(all_nominal_predictors()) %>% 
-  # Standard Score z berechnen, um die Variablen untereinander vergleichen zu können
-  # Test daten dürfen hier nicht mit normalisiert werden
-  # Bei den Test daten dürfen später niemals der Mittelwert berechnet werden, stattdessen nimmt man die Mittelwerte und Standardabweichungen des Trainingsdaten, um die Test Daten zu normalisieren
-  step_normalize(all_numeric(), -all_outcomes()) %>% 
-  # One Hot Encoding / Bildung von Dummy Variablen - Die Zeilen der kategorialen Variablen werden in Spalten umgewandelt. Diese beinhalten binäre Werte in den Zeilen (ist die Ausprägung vorliegend, oder nicht)
-  step_dummy(all_nominal_predictors()) %>%
-  # Korrelationsprüfung, damit die Abhängigkeit der Variablen untereinander geprüft werden
-  step_corr(all_predictors(), threshold = 0.7, method = "spearman") 
-  
-```
+<!-- df_rec <- -->
+<!--   recipe(median_house_value ~ housing_median_age + rooms_per_household + ocean_proximity, data = train_data) %>% -->
+<!--   # Imputation (fehlende Variablen werden durch Median ersetzt) für alle numerischen, außer die Ergebnisvariable (y) -->
+<!--   # Imputationen sollten mit Vorsicht genutzt werden, da viele -->
+<!--   step_impute_median(all_numeric(), -all_outcomes()) %>% -->
+<!--   # Imputation (fehlende Daten werden mit Mode ersetzt) für alle nominalen Prädikatoren (kategorialen Variablen) -->
+<!--   step_impute_mode(all_nominal_predictors()) %>% -->
+<!--   # Standard Score z berechnen, um die Variablen untereinander vergleichen zu können -->
+<!--   # Test daten dürfen hier nicht mit normalisiert werden -->
+<!--   # Bei den Test daten dürfen später niemals der Mittelwert berechnet werden, stattdessen nimmt man die Mittelwerte und Standardabweichungen des Trainingsdaten, um die Test Daten zu normalisieren -->
+<!--   step_normalize(all_numeric(), -all_outcomes()) %>% -->
+<!--   # One Hot Encoding / Bildung von Dummy Variablen - Die Zeilen der kategorialen Variablen werden in Spalten umgewandelt. Diese beinhalten binäre Werte in den Zeilen (ist die Ausprägung vorliegend, oder nicht) -->
+<!--   step_dummy(all_nominal_predictors()) %>% -->
+<!--   # Korrelationsprüfung, damit die Abhängigkeit der Variablen untereinander geprüft werden -->
+<!--   step_corr(all_predictors(), threshold = 0.7, method = "spearman") -->
 
-```{r}
-# Anzeigen, was mit df_rec gemacht werden soll
-summary(df_rec)
+<!-- ``` -->
 
-```
+<!-- ```{r} -->
+<!-- # Anzeigen, was mit df_rec gemacht werden soll -->
+<!-- summary(df_rec) -->
+
+<!-- ``` -->
 
 ## Model
 
-```{r}
+<!-- ```{r} -->
 
-# model specification
+<!-- # model specification -->
 
-xgb_spec <- 
-  # boost_tree nutzt automatisch die empirisch besten Parameter, wenn keine übergeben werden
-  boost_tree() %>% 
-  set_engine("xgboost") %>% 
-  # Kann als Klassifikation, oder Regression genutzt werden, deshalb muss das spezifiziert werden
-  set_mode("regression")   
+<!-- xgb_spec <- -->
+<!--   # boost_tree nutzt automatisch die empirisch besten Parameter, wenn keine übergeben werden -->
+<!--   boost_tree() %>% -->
+<!--   set_engine("xgboost") %>% -->
+<!--   # Kann als Klassifikation, oder Regression genutzt werden, deshalb muss das spezifiziert werden -->
+<!--   set_mode("regression") -->
 
-# workflow pipeline
-# In die Wf Pipeline wird das recipe aufgenommen (es können auch mehrere sein)
-xgb_wflow <-
- workflow() %>%
- add_recipe(df_rec) %>% 
- add_model(xgb_spec)
+<!-- # workflow pipeline -->
+<!-- # In die Wf Pipeline wird das recipe aufgenommen (es können auch mehrere sein) -->
+<!-- xgb_wflow <- -->
+<!--  workflow() %>% -->
+<!--  add_recipe(df_rec) %>% -->
+<!--  add_model(xgb_spec) -->
 
-```
+<!-- ``` -->
 
 ### Model Execution
 
-```{r}
+<!-- ```{r} -->
 
-set.seed(42)
+<!-- set.seed(42) -->
 
-# Vorbereitung zur Kreuzvalidierung der Trainingsdaten
-# Template für das Data Splitting
-cv_folds <-
-  vfold_cv(train_data,
-           v=5,
-           strata = median_house_value,
-           breaks = 4)
+<!-- # Vorbereitung zur Kreuzvalidierung der Trainingsdaten -->
+<!-- # Template für das Data Splitting -->
+<!-- cv_folds <- -->
+<!--   vfold_cv(train_data, -->
+<!--            v=5, -->
+<!--            strata = median_house_value, -->
+<!--            breaks = 4) -->
 
-```
+<!-- ``` -->
 
-```{r}
+<!-- ```{r} -->
 
-# Erstellt einen Fit der Daten an das Modell und prüft es mit den Folds
+<!-- # Erstellt einen Fit der Daten an das Modell und prüft es mit den Folds -->
 
-xgb_res <- 
-  xgb_wflow %>% 
-  fit_resamples(
-    # fitte die Daten Anhand der Kreuzvalidierung mit den Folds, die wir vorab festgelegt haben
-    resamples = cv_folds,
-    # Speichern der Ergebnisse, um die Prediciton anzuschauen
-    # Ist nicht immer notwendig
-    control = control_resamples(save_pred = TRUE)
-  )
+<!-- xgb_res <- -->
+<!--   xgb_wflow %>% -->
+<!--   fit_resamples( -->
+<!--     # fitte die Daten Anhand der Kreuzvalidierung mit den Folds, die wir vorab festgelegt haben -->
+<!--     resamples = cv_folds, -->
+<!--     # Speichern der Ergebnisse, um die Prediciton anzuschauen -->
+<!--     # Ist nicht immer notwendig -->
+<!--     control = control_resamples(save_pred = TRUE) -->
+<!--   ) -->
 
-```
+<!-- ``` -->
 
-```{r}
-# Zeige die Ergebnisse des Model fits für den Algorithmus xgb an
-# rmse gibt Abstand zu Fit des Modells an
-# rsq gibt prozentualen Wert an zur Erklärung des Modells für die Datengrundlage
-xgb_res %>% collect_metrics(summarize = FALSE)
+<!-- ```{r} -->
+<!-- # Zeige die Ergebnisse des Model fits für den Algorithmus xgb an -->
+<!-- # rmse gibt Abstand zu Fit des Modells an -->
+<!-- # rsq gibt prozentualen Wert an zur Erklärung des Modells für die Datengrundlage -->
+<!-- xgb_res %>% collect_metrics(summarize = FALSE) -->
 
-```
+<!-- ``` -->
 
 ## Predictions
 
-```{r}
-# Gibt die Prediction für die House Value bezogen auf die Trainingsdaten
-assess_res <- collect_predictions(xgb_res)
+<!-- ```{r} -->
+<!-- # Gibt die Prediction für die House Value bezogen auf die Trainingsdaten -->
+<!-- assess_res <- collect_predictions(xgb_res) -->
 
-assess_res
+<!-- assess_res -->
 
-```
+<!-- ``` -->
 
-```{r}
-# Zeige die top ten der am meisten abweichenden Vorhersagen
-# Ermöglicht zusätzliche Daten Evaluierung 
-wrongest_prediction <- 
-  assess_res %>% 
-  mutate(residual = median_house_value - .pred) %>% 
-  arrange(desc(abs(residual))) %>% 
-  slice_head(n = 10)
+<!-- ```{r} -->
+<!-- # Zeige die top ten der am meisten abweichenden Vorhersagen -->
+<!-- # Ermöglicht zusätzliche Daten Evaluierung -->
+<!-- wrongest_prediction <- -->
+<!--   assess_res %>% -->
+<!--   mutate(residual = median_house_value - .pred) %>% -->
+<!--   arrange(desc(abs(residual))) %>% -->
+<!--   slice_head(n = 10) -->
 
-wrongest_prediction
+<!-- wrongest_prediction -->
 
-```
+<!-- ``` -->
 
 
-```{r}
-# Genauere Untersuchung der Abweichungen, indem die Einträge aus der Tabelle der trainings Daten angezeigt werden
-# Ermöglicht einzelne Untersuchung der Datenpunkte
+<!-- ```{r} -->
+<!-- # Genauere Untersuchung der Abweichungen, indem die Einträge aus der Tabelle der trainings Daten angezeigt werden -->
+<!-- # Ermöglicht einzelne Untersuchung der Datenpunkte -->
 
-errors <- 
-  train_data %>% 
-  dplyr::slice(wrongest_prediction$.row)
+<!-- errors <- -->
+<!--   train_data %>% -->
+<!--   dplyr::slice(wrongest_prediction$.row) -->
 
-```
+<!-- ``` -->
 
 
 ## Final Evaluation
 
-```{r}
-# Fitte das Modell an die Test Daten, zur Prüfung der Aussagekraft
-# Zeigt die Ergebnisse des Models an, indem Daten geprüft werden, die das Model noch nicht kennt
-last_fit_xgb <- last_fit(xgb_wflow, split = data_split)
+<!-- ```{r} -->
+<!-- # Fitte das Modell an die Test Daten, zur Prüfung der Aussagekraft -->
+<!-- # Zeigt die Ergebnisse des Models an, indem Daten geprüft werden, die das Model noch nicht kennt -->
+<!-- last_fit_xgb <- last_fit(xgb_wflow, split = data_split) -->
 
-# Show RMSE and RSQ
-last_fit_xgb %>% 
-  collect_metrics()
+<!-- # Show RMSE and RSQ -->
+<!-- last_fit_xgb %>% -->
+<!--   collect_metrics() -->
 
-```
+<!-- ``` -->
