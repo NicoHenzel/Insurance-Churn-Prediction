@@ -35,6 +35,7 @@ library(rsample)
 library(GGally)
 library(tidymodels)
 library(xgboost)
+library(RCurl)
 ```
 
 # Plan
@@ -71,15 +72,17 @@ glimpse(df_train)
 glimpse(df_test)
 ```
 
+Get the dimensions for both dataframes.
 ```{r dim-df}
 dim_train <- dim(df_train)
 dim_test <- dim(df_test)
-
 ```
+
+
 This gives us 3 informations:
 
-1. The datatype for every variable (feature column) in both dataframes is double   
-- although there are variables that only hold integer values (features 7 - 15)
+1. The datatype for every variable (feature column) in both dataframes is double.   
+Although there are variables that only hold integer values (features 7 - 15)
 
 2. The dimensions for both dataframes are the following:
 
@@ -91,8 +94,8 @@ This gives us 3 informations:
   observations = `r dim_test[1]`  
   variables = `r dim_test[2]`
   
-3. The *labels* column is a boolean, (1 or 0) which only appears in the training dataframe.  
-This can be seen as the indicator for churning, since the column doesn't appear in testing dataframe and it is a yes or no variable.
+3. The *labels* column is a boolean, (1 or 0) which only appears in df_train.  
+This can be seen as the indicator for churning, since the column doesn't appear in df_test and it is a yes or no variable.
 
 <!-- ```{r} -->
 <!-- ## Zeíge nur die ersten 4 inhalte der Tabelle an -->
@@ -102,6 +105,7 @@ This can be seen as the indicator for churning, since the column doesn't appear 
 <!-- ``` -->
 
 ### Missing values
+Show any missing values in both dataframes.
 ```{r}
 vis_dat(df_train)
 vis_dat(df_test)
