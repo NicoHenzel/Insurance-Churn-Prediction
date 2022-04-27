@@ -65,22 +65,34 @@ df_test <- read_csv(LINK_test)
 
 ## Overview
 Look at the first rows from each dataframe.
+
+```{r glimpse-df}
+glimpse(df_train)
+glimpse(df_test)
+```
+
+```{r dim-df}
+dim_train <- dim(df_train)
+dim_test <- dim(df_test)
+
+```
 This gives us 3 informations:
 
-1. The datatype for every variable (feature column) is double - although there are variables that only hold integer values
+1. The datatype for every variable (feature column) in both dataframes is double   
+- although there are variables that only hold integer values (features 7 - 15)
 
-2. 
+2. The dimensions for both dataframes are the following:
 
-```{r glimpse-train}
-glimpse(df_train)
-dim(df_train)
-```
-
-```{r glimpse-test}
-glimpse(df_test)
-dim(df_test)
-
-```
+* Training set:  
+  observations = `r dim_train[1]`   
+  variables = `r dim_train[2]`
+  
+* Test set:  
+  observations = `r dim_test[1]`  
+  variables = `r dim_test[2]`
+  
+3. The *labels* column is a boolean, (1 or 0) which only appears in the training dataframe.  
+This can be seen as the indicator for churning, since the column doesn't appear in testing dataframe and it is a yes or no variable.
 
 <!-- ```{r} -->
 <!-- ## Zeíge nur die ersten 4 inhalte der Tabelle an -->
@@ -89,7 +101,21 @@ dim(df_test)
 <!--   gt() -->
 <!-- ``` -->
 
+### Missing values
+```{r}
+vis_dat(df_train)
+vis_dat(df_test)
+```
 
+<!-- ```{r} -->
+<!-- vis_miss(df, sort_miss = TRUE) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- # Zeige die Fehlende Werte als Absolute Zahlen -->
+<!-- is.na(df) %>% -->
+<!--   colSums() -->
+<!-- ``` -->
 
 ## Clean data
 <!-- ```{r} -->
@@ -113,28 +139,16 @@ dim(df_test)
 <!-- ``` -->
 
 
-### Missing values
-<!-- ```{r} -->
-<!-- vis_dat(df) -->
-<!-- ``` -->
 
-<!-- ```{r} -->
-<!-- vis_miss(df, sort_miss = TRUE) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # Zeige die Fehlende Werte als Absolute Zahlen -->
-<!-- is.na(df) %>% -->
-<!--   colSums() -->
-<!-- ``` -->
 
 ### Data stats
 
-<!-- ```{r} -->
-<!-- skim(df) -->
-<!-- ``` -->
+```{r}
+skim(df_train)
+skim(df_test)
+```
 
-<!-- ### Create new variable -->
+### Create new variable
 
 <!-- ```{r} -->
 <!-- df <- -->
