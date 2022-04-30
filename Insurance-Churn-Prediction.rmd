@@ -70,33 +70,40 @@ Churn rate is decreasing after implementation of recommendation.
 Load training and test dataset (provided from kaggle - see *Plan*)
 
 ```{r train-dataset}
-LINK_train <- "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Train.csv"
+LINK_train <- 
+  "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Train.csv"
 
-df_train <- read_csv(LINK_train)
+training_data <- 
+  read_csv(LINK_train)
 ```
 
 ```{r test-dataset}
-LINK_test <- "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Test.csv"
+LINK_test <- 
+  "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Test.csv"
 
-df_test <- read_csv(LINK_test)
+test_data <- 
+  read_csv(LINK_test)
 ```
 
 ## Overview
 Look at the first rows from each dataframe.
 
 ```{r glimpse-df}
-glimpse(df_train)
-glimpse(df_test)
+glimpse(training_data)
+glimpse(test_data)
 ```
+
 
 Get the dimensions for both dataframes.
 ```{r dim-df}
-dim_train <- dim(df_train)
-dim_test <- dim(df_test)
+dim_train <- 
+  dim(training_data)
+dim_test <- 
+  dim(test_data)
 
-total_obs <- dim_train[1] + dim_test[1]
+total_obs <- 
+  dim_train[1] + dim_test[1]
 ```
-
 
 This gives us some informations:
 
@@ -118,54 +125,52 @@ Although there are variables that only hold integer values (features 7 - 15)
 3. The *labels* column is a boolean, (1 or 0) which only appears in df_train.  
 This can be seen as the indicator for churning, since the column doesn't appear in df_test (where it needs to be tested against).
 
-<!-- ```{r} -->
-<!-- ## Zeíge nur die ersten 4 inhalte der Tabelle an -->
-<!-- df %>% -->
-<!--   slice_head(n=4) %>% -->
-<!--   gt() -->
-<!-- ``` -->
-
 ### Visualize the data
 Show any missing values in both dataframes.
 ```{r}
-vis_dat(df_train)
-vis_dat(df_test)
+vis_dat(training_data)
+vis_dat(test_data)
 ```
 
 df_test does not need to be adjusted any further. It can be used as it is to perform our model testing with.
-<!-- ```{r} -->
-<!-- vis_miss(df, sort_miss = TRUE) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # Zeige die Fehlende Werte als Absolute Zahlen -->
-<!-- is.na(df) %>% -->
-<!--   colSums() -->
-<!-- ``` -->
 
 ### Clean Data
 
 Does not need to be performed, since data already comes cleaned.
 
 To DO
-<!-- Jan fragen, ob das in Ordnung ist -->
+* Jan fragen, ob das in Ordnung ist
+
+We create a new dataframe to avoid altering the training dataset during the data exploration.  
+Afterwards the "label" column is renamed to "churn"
+
+```{r data-modification}
+#Create new dataframe 
+df_train <- 
+  training_data
+
+#Rename labels
+df_train <- 
+  rename(df_train, churn = labels)
+
+```
+
 
 ## Data split
+Since the data comes already split into test and train datasets, we only need to create a validation set to be used during the modeling.  
 
-<!-- ```{r} -->
+```{r evaluation-split}
 
-<!-- set.seed(42) -->
+set.seed(42)
 
-<!-- # Teile die Daten in trainings und test Set auf -->
-<!-- data_split <- initial_split(df, -->
-<!--                             prop = 3/4, -->
-<!--                             strata = median_house_value, -->
-<!--                             breaks = 4) -->
+cv_folds <-
+  vfold_cv(training_data,
+           v=5,
+           strata = labels,
+           breaks = 4)
 
-<!-- train_data <- training(data_split) -->
-<!-- test_data <- testing(data_split) -->
+```
 
-<!-- ``` -->
 
 ## Data exploration
 
@@ -178,21 +183,19 @@ skim(df_train)
 
 
 TO DO  
-<!-- Beziehung der Variablen darstellen und Abhängigkeit zu churn rate  -->
+* Beziehung der Variablen darstellen und Abhängigkeit zu churn rate
 
-<!-- Siehe https://www.kaggle.com/code/blentalikan/insurancechurnprediction -->
+* Siehe https://www.kaggle.com/code/blentalikan/insurancechurnprediction
 
 ### Create new variable
 
 OFFEN
-<!-- Beziehung von bestehenden Variablen darstellen und intepretieren -->
+* Beziehung von bestehenden Variablen darstellen und intepretieren
 
 
-# Daten Plotten
-<!-- ggplot(data = data_explore, aes(x=longitude, y=latitude)) + -->
-<!--   geom_point(color = "cornflowerblue") -->
+## Plot data
 
-<!-- ``` -->
+OFFEN
 
 ## List of features
 
@@ -215,181 +218,98 @@ list_cat <-
 length(list_num)
 ```
 
-There are 
-`r length(list_cat)` categorial
-`r length(list_num)` numerical
+There are  
+`r length(list_cat)` categorial  
+`r length(list_num)` numerical  
+Variables
 
-
-
-<!-- ```{r} -->
-
-<!-- mean_population <- -->
-<!-- mean(data_explore$population) -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- data_explore <- -->
-<!-- data_explore %>% -->
-<!--   mutate(population_cat = case_when(population < mean_population ~ "low", -->
-<!--                                     TRUE ~ "high"), -->
-<!--          population_cat = as.factor(population_cat), -->
-<!--          ocean_proximity = as.factor(ocean_proximity) -->
-<!--          ) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # Tabellenspalten alphabetisch anordnen -->
-<!-- df_new <- -->
-<!-- df_new %>% select(order(colnames(.))) -->
-
-<!-- ``` -->
-
-
-<!-- ```{r} -->
-<!-- # Erstelle eine Feature liste, die keine numerischen Werte enthält -->
-<!-- feat_cat <- -->
-<!--   data_explore %>% -->
-<!--   select(!where(is.numeric)) %>% -->
-<!--   names() -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # Spalte entfernen -->
-<!-- # Nimm aus dem Datensatz data_explore die Variable housing_median_age_new und setze sie NULL -->
-
-<!-- data_explore$housing_median_age_new <- NULL -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # Bar Plot erstellen für kategorische / numerische Variablen -->
-<!-- # Loop in Feature Liste -->
-<!-- # Gehe über alle Elemente in Liste feat_cat und erstelle eine Abbildung von der Tabelle data_explore, mit der Bedingung, dass x = ein Element aus der feat_at Liste ist -->
-<!-- # plotte p im Anschluss -->
-<!-- for (i in feat_cat){ -->
-
-<!--   p <- ggplot(data_explore, aes_string(x=i)) + -->
-<!--   geom_bar() -->
-
-<!--   plot(p) -->
-<!--   } -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # Boxplot für die Abhängige Variable median house value erstellen -->
-
-<!-- ggplot(data = data_explore, aes(x=population_cat, y=median_house_value)) + -->
-<!--   geom_boxplot() -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # Abbildung der Korrelationskoeffizienten von zwei Variablen -->
-<!-- # Ermöglicht die Darstellung von Abhängigkeiten und Interpretation der Beziehung von Variablen zueinander -->
-<!-- data_explore %>% -->
-<!--   select(median_house_value, housing_median_age, bedrooms_per_room) %>% -->
-<!--   ggpairs() -->
-
-<!-- ``` -->
-
+To DO
+* Integer und Float unterteilung
 
 
 ## Data pipeline
 
-<!-- ```{r} -->
-<!-- # Erstelle ein Rezept für die Modelle, wie mit den Daten umgegangen werden soll -->
-<!-- # Modellierung: Zuerst wird die y (Abhängige) Variable geschrieben, dann ~, dann kommen die unabhängigen Variablen (mit einem . können alle anderen Variablen genutzt werden) -->
-<!-- # Die Variablen werden folgendermaßen ausgewählt: -->
-<!-- # y Variable ist die, die betrachtet werden soll durch das Modell (welche soll ausgewertet werden, abghängig von den anderen Variablen) -->
-<!-- # Die restlichen Variablen werden mitgegeben, die aus unserer Sicht die Ergebnis Variable (y) am meisten Beeinflussen -->
+```{r}
+# Erstelle ein Rezept für die Modelle, wie mit den Daten umgegangen werden soll
+# Modellierung: Zuerst wird die y (Abhängige) Variable geschrieben, dann ~, dann kommen die unabhängigen Variablen (mit einem . können alle anderen Variablen genutzt werden)
+# Die Variablen werden folgendermaßen ausgewählt:
+# y Variable ist die, die betrachtet werden soll durch das Modell (welche soll ausgewertet werden, abghängig von den anderen Variablen)
+# Die restlichen Variablen werden mitgegeben, die aus unserer Sicht die Ergebnis Variable (y) am meisten Beeinflussen
 
-<!-- df_rec <- -->
-<!--   recipe(median_house_value ~ housing_median_age + rooms_per_household + ocean_proximity, data = train_data) %>% -->
-<!--   # Imputation (fehlende Variablen werden durch Median ersetzt) für alle numerischen, außer die Ergebnisvariable (y) -->
-<!--   # Imputationen sollten mit Vorsicht genutzt werden, da viele -->
-<!--   step_impute_median(all_numeric(), -all_outcomes()) %>% -->
-<!--   # Imputation (fehlende Daten werden mit Mode ersetzt) für alle nominalen Prädikatoren (kategorialen Variablen) -->
-<!--   step_impute_mode(all_nominal_predictors()) %>% -->
-<!--   # Standard Score z berechnen, um die Variablen untereinander vergleichen zu können -->
-<!--   # Test daten dürfen hier nicht mit normalisiert werden -->
-<!--   # Bei den Test daten dürfen später niemals der Mittelwert berechnet werden, stattdessen nimmt man die Mittelwerte und Standardabweichungen des Trainingsdaten, um die Test Daten zu normalisieren -->
-<!--   step_normalize(all_numeric(), -all_outcomes()) %>% -->
-<!--   # One Hot Encoding / Bildung von Dummy Variablen - Die Zeilen der kategorialen Variablen werden in Spalten umgewandelt. Diese beinhalten binäre Werte in den Zeilen (ist die Ausprägung vorliegend, oder nicht) -->
-<!--   step_dummy(all_nominal_predictors()) %>% -->
-<!--   # Korrelationsprüfung, damit die Abhängigkeit der Variablen untereinander geprüft werden -->
-<!--   step_corr(all_predictors(), threshold = 0.7, method = "spearman") -->
+df_rec <-
+  recipe(
+    labels ~ .,
+    data = training_data) %>%
+  # Imputation (fehlende Variablen werden durch Median ersetzt) für alle numerischen, außer die Ergebnisvariable (y)
+  # Imputationen sollten mit Vorsicht genutzt werden, da viele
+  # step_impute_median(all_numeric(), -all_outcomes()) %>%
+  # Imputation (fehlende Daten werden mit Mode ersetzt) für alle nominalen Prädikatoren (kategorialen Variablen)
+  # step_impute_mode(all_nominal_predictors()) %>%
+  # Standard Score z berechnen, um die Variablen untereinander vergleichen zu können
+  # Test daten dürfen hier nicht mit normalisiert werden
+  # Bei den Test daten dürfen später niemals der Mittelwert berechnet werden, stattdessen nimmt man die Mittelwerte und Standardabweichungen des Trainingsdaten, um die Test Daten zu normalisieren
+  # step_normalize(all_numeric(), -all_outcomes()) %>%
+  # One Hot Encoding / Bildung von Dummy Variablen - Die Zeilen der kategorialen Variablen werden in Spalten umgewandelt. Diese beinhalten binäre Werte in den Zeilen (ist die Ausprägung vorliegend, oder nicht)
+  # step_dummy(all_nominal_predictors()) %>%
+  # Korrelationsprüfung, damit die Abhängigkeit der Variablen untereinander geprüft werden
+  step_corr(all_predictors(), threshold = 0.7, method = "spearman")
 
-<!-- ``` -->
+```
 
-<!-- ```{r} -->
-<!-- # Anzeigen, was mit df_rec gemacht werden soll -->
-<!-- summary(df_rec) -->
+```{r}
+# Anzeigen, was mit df_rec gemacht werden soll
+summary(df_rec)
+```
 
-<!-- ``` -->
+The recipe is prepared such that the last variable "labels" serves as the outcome which trains the data.
 
 ## Model
 
-<!-- ```{r} -->
+```{r}
 
-<!-- # model specification -->
+# model specification
 
-<!-- xgb_spec <- -->
-<!--   # boost_tree nutzt automatisch die empirisch besten Parameter, wenn keine übergeben werden -->
-<!--   boost_tree() %>% -->
-<!--   set_engine("xgboost") %>% -->
-<!--   # Kann als Klassifikation, oder Regression genutzt werden, deshalb muss das spezifiziert werden -->
-<!--   set_mode("regression") -->
+xgb_spec <-
+  # boost_tree nutzt automatisch die empirisch besten Parameter, wenn keine übergeben werden
+  boost_tree() %>%
+  set_engine("xgboost") %>%
+  # Kann als Klassifikation, oder Regression genutzt werden, deshalb muss das spezifiziert werden
+  set_mode("classification")
 
-<!-- # workflow pipeline -->
-<!-- # In die Wf Pipeline wird das recipe aufgenommen (es können auch mehrere sein) -->
-<!-- xgb_wflow <- -->
-<!--  workflow() %>% -->
-<!--  add_recipe(df_rec) %>% -->
-<!--  add_model(xgb_spec) -->
+# workflow pipeline
+# In die Wf Pipeline wird das recipe aufgenommen (es können auch mehrere sein)
+xgb_wflow <-
+ workflow() %>%
+ add_recipe(df_rec) %>%
+ add_model(xgb_spec)
 
-<!-- ``` -->
+```
 
 ### Model Execution
+HIER WEITER
+```{r}
 
-<!-- ```{r} -->
+# Erstellt einen Fit der Daten an das Modell und prüft es mit den Folds
 
-<!-- set.seed(42) -->
+xgb_res <-
+  xgb_wflow %>%
+  fit_resamples(
+    # fitte die Daten Anhand der Kreuzvalidierung mit den Folds, die wir vorab festgelegt haben
+    resamples = cv_folds,
+    # Speichern der Ergebnisse, um die Prediciton anzuschauen
+    # Ist nicht immer notwendig
+    control = control_resamples(save_pred = TRUE)
+  )
 
-<!-- # Vorbereitung zur Kreuzvalidierung der Trainingsdaten -->
-<!-- # Template für das Data Splitting -->
-<!-- cv_folds <- -->
-<!--   vfold_cv(train_data, -->
-<!--            v=5, -->
-<!--            strata = median_house_value, -->
-<!--            breaks = 4) -->
+```
 
-<!-- ``` -->
+```{r}
+# Zeige die Ergebnisse des Model fits für den Algorithmus xgb an
+# rmse gibt Abstand zu Fit des Modells an
+# rsq gibt prozentualen Wert an zur Erklärung des Modells für die Datengrundlage
+xgb_res %>% collect_metrics(summarize = FALSE)
 
-<!-- ```{r} -->
-
-<!-- # Erstellt einen Fit der Daten an das Modell und prüft es mit den Folds -->
-
-<!-- xgb_res <- -->
-<!--   xgb_wflow %>% -->
-<!--   fit_resamples( -->
-<!--     # fitte die Daten Anhand der Kreuzvalidierung mit den Folds, die wir vorab festgelegt haben -->
-<!--     resamples = cv_folds, -->
-<!--     # Speichern der Ergebnisse, um die Prediciton anzuschauen -->
-<!--     # Ist nicht immer notwendig -->
-<!--     control = control_resamples(save_pred = TRUE) -->
-<!--   ) -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # Zeige die Ergebnisse des Model fits für den Algorithmus xgb an -->
-<!-- # rmse gibt Abstand zu Fit des Modells an -->
-<!-- # rsq gibt prozentualen Wert an zur Erklärung des Modells für die Datengrundlage -->
-<!-- xgb_res %>% collect_metrics(summarize = FALSE) -->
-
-<!-- ``` -->
+```
 
 ## Predictions
 
