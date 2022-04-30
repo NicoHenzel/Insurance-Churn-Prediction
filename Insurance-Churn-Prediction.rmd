@@ -40,11 +40,28 @@ library(RCurl)
 
 # Plan
 
+<!-- Offene Punkte Siehe FOlien https://kirenz.github.io/data-science-r/docs/plan.html -->
 ## Use Case
+
+The goal for this project is to train a machine learning algorithm with anonymized insurance contract data in order to predict the insurance customer churn rate (whether the insurance company will lose a customer or not).
+A potential use case where these insights could be applied is:
+Any insurance company wants to improve (or at least not decrease) their customer loyalty.
+If the insurance case handlers could understand why a customer quits a contract and more importantly if a customer is close to quitting an ongoing contract, they could start countermeasures in order to improve customer service and maybe keep the customer.
+This information can easily be provided through a dashboard, or implemented into existing applications for viewing contracts, by marking potential customers and contracts which are likely to be quit.
+The visualisation in this project will be realized thorug a dashboard.
 
 ## Relevant Features
 
+<!-- Siehe Google Scholar Veröffentlichungen für relevante Features, da Daten anonym -->
+
 ## Metrics
+
+Succesful when: 
+
+* Churn prediction on training data > 95 % (not overtrained)
+* Visualized recommendations allow case handlers to identify potential churn and get in contact with customers.
+* *Can only be tested in a real environment*:  
+Churn rate is decreasing after implementation of recommendation.
 
 # Data
 
@@ -76,10 +93,12 @@ Get the dimensions for both dataframes.
 ```{r dim-df}
 dim_train <- dim(df_train)
 dim_test <- dim(df_test)
+
+total_obs <- dim_train[1] + dim_test[1]
 ```
 
 
-This gives us 3 informations:
+This gives us some informations:
 
 1. The datatype for every variable (feature column) in both dataframes is double.   
 Although there are variables that only hold integer values (features 7 - 15)
@@ -94,8 +113,10 @@ Although there are variables that only hold integer values (features 7 - 15)
   observations = `r dim_test[1]`  
   variables = `r dim_test[2]`
   
+* This equals a `r round(100 * (dim_train[1]/total_obs))`/ `r round(100 * (dim_test[1]/total_obs)) ` split
+  
 3. The *labels* column is a boolean, (1 or 0) which only appears in df_train.  
-This can be seen as the indicator for churning, since the column doesn't appear in df_test and it is a yes or no variable.
+This can be seen as the indicator for churning, since the column doesn't appear in df_test (where it needs to be tested against).
 
 <!-- ```{r} -->
 <!-- ## Zeíge nur die ersten 4 inhalte der Tabelle an -->
@@ -104,13 +125,14 @@ This can be seen as the indicator for churning, since the column doesn't appear 
 <!--   gt() -->
 <!-- ``` -->
 
-### Missing values
+### Visualize the data
 Show any missing values in both dataframes.
 ```{r}
 vis_dat(df_train)
 vis_dat(df_test)
 ```
 
+df_test does not need to be adjusted any further. It can be used as it is to perform our model testing with.
 <!-- ```{r} -->
 <!-- vis_miss(df, sort_miss = TRUE) -->
 <!-- ``` -->
@@ -121,59 +143,12 @@ vis_dat(df_test)
 <!--   colSums() -->
 <!-- ``` -->
 
-## Clean data
-<!-- ```{r} -->
-<!-- ## Verändere die Variablen, Entferne Inhalte im String -->
-<!-- df <- -->
-<!--   df %>% -->
-<!--   mutate( -->
-<!--          housing_median_age = str_remove_all(housing_median_age,"[years]"), -->
-<!--          median_house_value = str_remove_all(median_house_value,"[$]") -->
-<!--          ) -->
-<!-- ``` -->
+### Clean Data
 
-<!-- ```{r} -->
-<!-- # Verändere den Typ der Variablen -->
-<!-- df <- -->
-<!--   df %>% -->
-<!--   mutate( -->
-<!--          housing_median_age = as.numeric(housing_median_age), -->
-<!--          median_house_value = as.numeric(median_house_value) -->
-<!--          ) -->
-<!-- ``` -->
+Does not need to be performed, since data already comes cleaned.
 
-
-
-
-### Data stats
-
-```{r}
-skim(df_train)
-skim(df_test)
-```
-
-### Create new variable
-
-<!-- ```{r} -->
-<!-- df <- -->
-<!--   df %>% -->
-<!--   mutate(rooms_per_household = total_rooms/households, -->
-<!--          bedrooms_per_room = total_bedrooms/total_rooms, -->
-<!--          population_per_household = population/households) -->
-<!-- ``` -->
-
-## Data exploration
-
-
-<!-- ```{r} -->
-<!-- # list of all numerical data -->
-<!-- list_num <- -->
-<!--   df %>% -->
-<!--   select(where(is.numeric)) %>% -->
-<!--   names() -->
-
-<!-- list_num -->
-<!-- ``` -->
+To DO
+<!-- Jan fragen, ob das in Ordnung ist -->
 
 ## Data split
 
@@ -194,23 +169,25 @@ skim(df_test)
 
 ## Data exploration
 
-<!-- ```{r} -->
-<!-- data_explore <- train_data -->
-<!-- ``` -->
 
-<!-- ```{r} -->
-<!-- # Gewichtung der Haushalte, die in Kategorien eingeteilt sind nach Nähe zum Meer -->
-<!-- # Gibt aus, wie viele Haushalte in welcher Kategorie liegen -->
+### Data stats
 
-<!-- data_explore %>% -->
-<!--   count(ocean_proximity, -->
-<!--         wt = households, -->
-<!--         name = "Sum") %>% -->
-<!--   gt() -->
+```{r}
+skim(df_train)
+```
 
-<!-- ``` -->
 
-<!-- ```{r} -->
+TO DO  
+<!-- Beziehung der Variablen darstellen und Abhängigkeit zu churn rate  -->
+
+<!-- Siehe https://www.kaggle.com/code/blentalikan/insurancechurnprediction -->
+
+### Create new variable
+
+OFFEN
+<!-- Beziehung von bestehenden Variablen darstellen und intepretieren -->
+
+
 # Daten Plotten
 <!-- ggplot(data = data_explore, aes(x=longitude, y=latitude)) + -->
 <!--   geom_point(color = "cornflowerblue") -->
@@ -218,6 +195,30 @@ skim(df_test)
 <!-- ``` -->
 
 ## List of features
+
+
+```{r}
+# list of all numerical data
+
+list_num <- 
+  df_train %>% 
+  select(where(is.numeric)) %>% 
+  names()
+
+
+# list of all categorical data
+list_cat <- 
+  df_train %>% 
+  select(!where(is.numeric)) %>% 
+  names()
+
+length(list_num)
+```
+
+There are 
+`r length(list_cat)` categorial
+`r length(list_num)` numerical
+
 
 
 <!-- ```{r} -->
@@ -292,6 +293,8 @@ skim(df_test)
 <!--   ggpairs() -->
 
 <!-- ``` -->
+
+
 
 ## Data pipeline
 
