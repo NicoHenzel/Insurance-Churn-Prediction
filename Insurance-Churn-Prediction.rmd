@@ -140,9 +140,26 @@ Does not need to be performed, since data already comes cleaned.
 
 To DO
 * Jan fragen, ob das in Ordnung ist
+<!-- For the XGBoost algorithm the data needs to be in matrix form. -->
+<!-- First we check the given data -->
+
+<!-- ```{r check-matrix} -->
+<!-- is.matrix(training_data) -->
+<!-- is.matrix(test_data) -->
+<!-- ``` -->
+
+<!-- Then we make new dataframes and transform them into matrix form -->
+
+<!-- ```{r transofrm-matrix} -->
+
+<!-- df_test  -->
+
+<!-- ``` -->
+
+### Format Data
 
 We create a new dataframe to avoid altering the training dataset during the data exploration.  
-Afterwards the "label" column is renamed to "churn"
+Afterwards the "label" column is renamed to "churn" and the binary values are transformed to named values to represent the churn. Lastly the column is transformed into a factor type (which will be useful for running the algorithm)
 
 ```{r data-modification}
 #Create new dataframe 
@@ -153,7 +170,25 @@ df_train <-
 df_train <- 
   rename(df_train, churn = labels)
 
+#Change column type and values
+df_train <-
+  df_train %>% 
+  mutate(
+    churn = as.character(churn)
+  ) 
+# Change values
+df_train$churn[df_train$churn == "1"] <- "Yes"
+df_train$churn[df_train$churn == "0"] <- "No"
+
+# Change column type to factor
+df_train <-
+  df_train %>% 
+  mutate(
+    churn = as.factor(churn)
+  ) 
+
 ```
+
 
 
 ## Data split
@@ -164,9 +199,9 @@ Since the data comes already split into test and train datasets, we only need to
 set.seed(42)
 
 cv_folds <-
-  vfold_cv(training_data,
+  vfold_cv(df_train,
            v=5,
-           strata = labels,
+           strata = churn,
            breaks = 4)
 
 ```
@@ -216,6 +251,7 @@ list_cat <-
   names()
 
 length(list_num)
+length(list_cat)
 ```
 
 There are  
@@ -224,7 +260,7 @@ There are
 Variables
 
 To DO
-* Integer und Float unterteilung
+* Integer und Float Unterteilung
 
 
 ## Data pipeline
@@ -238,19 +274,19 @@ To DO
 
 df_rec <-
   recipe(
-    labels ~ .,
-    data = training_data) %>%
+    churn ~ .,
+    data = df_train) %>%
   # Imputation (fehlende Variablen werden durch Median ersetzt) für alle numerischen, außer die Ergebnisvariable (y)
   # Imputationen sollten mit Vorsicht genutzt werden, da viele
-  # step_impute_median(all_numeric(), -all_outcomes()) %>%
+   #step_impute_median(all_numeric(), -all_outcomes()) %>%
   # Imputation (fehlende Daten werden mit Mode ersetzt) für alle nominalen Prädikatoren (kategorialen Variablen)
-  # step_impute_mode(all_nominal_predictors()) %>%
+   #step_impute_mode(all_nominal_predictors()) %>%
   # Standard Score z berechnen, um die Variablen untereinander vergleichen zu können
   # Test daten dürfen hier nicht mit normalisiert werden
   # Bei den Test daten dürfen später niemals der Mittelwert berechnet werden, stattdessen nimmt man die Mittelwerte und Standardabweichungen des Trainingsdaten, um die Test Daten zu normalisieren
-  # step_normalize(all_numeric(), -all_outcomes()) %>%
+   #step_normalize(all_numeric(), -all_outcomes()) %>%
   # One Hot Encoding / Bildung von Dummy Variablen - Die Zeilen der kategorialen Variablen werden in Spalten umgewandelt. Diese beinhalten binäre Werte in den Zeilen (ist die Ausprägung vorliegend, oder nicht)
-  # step_dummy(all_nominal_predictors()) %>%
+   #step_dummy(all_nominal_predictors()) %>%
   # Korrelationsprüfung, damit die Abhängigkeit der Variablen untereinander geprüft werden
   step_corr(all_predictors(), threshold = 0.7, method = "spearman")
 
@@ -260,6 +296,16 @@ df_rec <-
 # Anzeigen, was mit df_rec gemacht werden soll
 summary(df_rec)
 ```
+
+```{r}
+prepped_data <- 
+  df_rec %>% # use the recipe object
+  prep() %>% # perform the recipe on training data
+  juice() # extract only the preprocessed dataframe 
+
+glimpse(prepped_data)
+```
+
 
 The recipe is prepared such that the last variable "labels" serves as the outcome which trains the data.
 
@@ -314,7 +360,7 @@ xgb_res %>% collect_metrics(summarize = FALSE)
 ## Predictions
 
 <!-- ```{r} -->
-<!-- # Gibt die Prediction für die House Value bezogen auf die Trainingsdaten -->
+<!-- # Gibt die Prediction für die churn rate bezogen auf die Trainingsdaten -->
 <!-- assess_res <- collect_predictions(xgb_res) -->
 
 <!-- assess_res -->
@@ -326,7 +372,7 @@ xgb_res %>% collect_metrics(summarize = FALSE)
 <!-- # Ermöglicht zusätzliche Daten Evaluierung -->
 <!-- wrongest_prediction <- -->
 <!--   assess_res %>% -->
-<!--   mutate(residual = median_house_value - .pred) %>% -->
+<!--   mutate(residual = churn - .) %>% -->
 <!--   arrange(desc(abs(residual))) %>% -->
 <!--   slice_head(n = 10) -->
 
