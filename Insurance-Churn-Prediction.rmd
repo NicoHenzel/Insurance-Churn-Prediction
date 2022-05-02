@@ -43,12 +43,19 @@ library(RCurl)
 <!-- Offene Punkte Siehe FOlien https://kirenz.github.io/data-science-r/docs/plan.html -->
 ## Use Case
 
-The goal for this project is to train a machine learning algorithm with anonymized insurance contract data in order to predict the insurance customer churn rate (whether the insurance company will lose a customer or not).
-A potential use case where these insights could be applied is:
+The goal for this project is to train a classification algorithm with anonymized insurance contract data in order to predict the churn of insurance customers (whether the insurance company will lose a customer or not).
+Since the outcome is categorial (customers stays or leaves) and the churn in the available training is labeled, we face a supervised learning problem that can be solved with a classification model.  
+In order to measure the performance, the F1-Score will serve as a metric.  
+
+A potential use case, where these insights could be applied, is:
 Any insurance company wants to improve (or at least not decrease) their customer loyalty.
 If the insurance case handlers could understand why a customer quits a contract and more importantly if a customer is close to quitting an ongoing contract, they could start countermeasures in order to improve customer service and maybe keep the customer.
-This information can easily be provided through a dashboard, or implemented into existing applications for viewing contracts, by marking potential customers and contracts which are likely to be quit.
-The visualisation in this project will be realized thorug a dashboard.
+The output from this model could be provided as information within a dashboard, or implemented into existing applications which display contract information to the case handler. This information can then be used to make further decisions by the case handlers.
+The visualization in this project will be realized throug a dashboard.
+
+* To DO: DATA PIPELINE DARSTELLEN
+https://docs.google.com/presentation/d/1vjm5YdmOH5LrubFhHf1vlqW2O9Z2UqdWA8biN3e8K5U/edit#slide=id.g19b41f69d7_2_265
+
 
 ## Relevant Features
 
@@ -63,11 +70,11 @@ Succesful when:
 * *Can only be tested in a real environment*:  
 Churn rate is decreasing after implementation of recommendation.
 
-# Data
+# Data understanding
 
 ## Import
 
-Load training and test dataset (provided from kaggle - see *Plan*)
+Load training and test dataset (provided from kaggle - see **https://www.kaggle.com/datasets/k123vinod/insurance-churn-prediction-weekend-hackathon**)
 
 ```{r train-dataset}
 LINK_train <- 
@@ -86,15 +93,8 @@ test_data <-
 ```
 
 ## Overview
-Look at the first rows from each dataframe.
+Collect some dimensional (amount of variables and observations) information about the dataframes.
 
-```{r glimpse-df}
-glimpse(training_data)
-glimpse(test_data)
-```
-
-
-Get the dimensions for both dataframes.
 ```{r dim-df}
 dim_train <- 
   dim(training_data)
@@ -105,10 +105,24 @@ total_obs <-
   dim_train[1] + dim_test[1]
 ```
 
-This gives us some informations:
+Look at the first rows from each dataframe.
+
+```{r slice-training}
+training_data %>% 
+  slice_head(n=5) %>% 
+  gt()
+```
+
+```{r slice-test}
+test_data %>% 
+  slice_head(n=5) %>% 
+  gt()
+```
+
+This gives us the following informations:
 
 1. The datatype for every variable (feature column) in both dataframes is double.   
-Although there are variables that only hold integer values (features 7 - 15)
+Since everything is numeric, this is okay, although there are variables that only hold integer values (features 7 - 15).
 
 2. The dimensions for both dataframes are the following:
 
@@ -122,8 +136,9 @@ Although there are variables that only hold integer values (features 7 - 15)
   
 * This equals a `r round(100 * (dim_train[1]/total_obs))`/ `r round(100 * (dim_test[1]/total_obs)) ` split
   
-3. The *labels* column is a boolean, (1 or 0) which only appears in df_train.  
+3. The *labels* column is a boolean, (1 or 0) which only appears in the training data set.  
 This can be seen as the indicator for churning, since the column doesn't appear in df_test (where it needs to be tested against).
+It will later be transformed into a factor, since it will serve as the outcome value in our model.
 
 ### Visualize the data
 Show any missing values in both dataframes.
@@ -132,29 +147,13 @@ vis_dat(training_data)
 vis_dat(test_data)
 ```
 
-df_test does not need to be adjusted any further. It can be used as it is to perform our model testing with.
-
 ### Clean Data
 
-Does not need to be performed, since data already comes cleaned.
+The datasets are already clean and without any missing values.
+This makes it easier for us, since no data cleaning needs to be performed.
 
 To DO
 * Jan fragen, ob das in Ordnung ist
-<!-- For the XGBoost algorithm the data needs to be in matrix form. -->
-<!-- First we check the given data -->
-
-<!-- ```{r check-matrix} -->
-<!-- is.matrix(training_data) -->
-<!-- is.matrix(test_data) -->
-<!-- ``` -->
-
-<!-- Then we make new dataframes and transform them into matrix form -->
-
-<!-- ```{r transofrm-matrix} -->
-
-<!-- df_test  -->
-
-<!-- ``` -->
 
 ### Format Data
 
