@@ -39,9 +39,15 @@ library(RCurl)
 ```
 
 # Plan
+Anleitung Siehe https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#boosted-tree-xgboost
 
-<!-- Offene Punkte Siehe FOlien https://kirenz.github.io/data-science-r/docs/plan.html -->
-## Use Case
+Offene Punkte Siehe FOlien https://kirenz.github.io/data-science-r/docs/plan.html
+
+Zusätzlich:  
+
+* Bewertungskriterien abdecken aus Slack
+* Bewertungskriterien abdecken aus https://drive.google.com/file/d/1AsNHMnbEluH1ikwmp6ulBLqmmiHP3q98/view
+## Use case
 
 The goal for this project is to train a classification algorithm with anonymized insurance contract data in order to predict the churn of insurance customers (whether the insurance company will lose a customer or not).
 Since the outcome is categorial (customers stays or leaves) and the churn in the available training is labeled, we face a supervised learning problem that can be solved with a classification model.  
@@ -56,10 +62,6 @@ The visualization in this project will be realized throug a dashboard.
 * To DO: DATA PIPELINE DARSTELLEN
 https://docs.google.com/presentation/d/1vjm5YdmOH5LrubFhHf1vlqW2O9Z2UqdWA8biN3e8K5U/edit#slide=id.g19b41f69d7_2_265
 
-
-## Relevant Features
-
-<!-- Siehe Google Scholar Veröffentlichungen für relevante Features, da Daten anonym -->
 
 ## Metrics
 
@@ -103,6 +105,15 @@ dim_test <-
 
 total_obs <- 
   dim_train[1] + dim_test[1]
+
+train_split <- 
+  round(
+    100 * (dim_train[1]/total_obs)
+    )
+test_split <-
+  round(
+    100 * (dim_test[1]/total_obs)
+    )
 ```
 
 Look at the first rows from each dataframe.
@@ -121,8 +132,7 @@ test_data %>%
 
 This gives us the following informations:
 
-1. The datatype for every variable (feature column) in both dataframes is double.   
-Since everything is numeric, this is okay, although there are variables that only hold integer values (features 7 - 15).
+1. The data seems to be clean already. Further information will be gathered in **Format Data* section.
 
 2. The dimensions for both dataframes are the following:
 
@@ -134,100 +144,103 @@ Since everything is numeric, this is okay, although there are variables that onl
   observations = `r dim_test[1]`  
   variables = `r dim_test[2]`
   
-* This equals a `r round(100 * (dim_train[1]/total_obs))`/ `r round(100 * (dim_test[1]/total_obs)) ` split
+This equals a `r train_split`/`r test_split` split
   
-3. The *labels* column is a boolean, (1 or 0) which only appears in the training data set.  
-This can be seen as the indicator for churning, since the column doesn't appear in df_test (where it needs to be tested against).
-It will later be transformed into a factor, since it will serve as the outcome value in our model.
+3. The *labels* column is a boolean (1 or 0) which only appears in the training data set.  
+This variable can be seen as the indicator for churning, since the column doesn't appear in the given test data (this data should be predicted).
 
-### Visualize the data
-Show any missing values in both dataframes.
-```{r}
-vis_dat(training_data)
-vis_dat(test_data)
-```
 
-### Clean Data
+## Clean data
 
-The datasets are already clean and without any missing values.
+The datasets are already clean with lowercase column names without spaces and no special characters.
 This makes it easier for us, since no data cleaning needs to be performed.
 
 To DO
 * Jan fragen, ob das in Ordnung ist
 
-### Format Data
+## Format data
+Next we will be inspecting the given data structure and check if there are any missing values in both datasets.
 
-We create a new dataframe to avoid altering the training dataset during the data exploration.  
-Afterwards the "label" column is renamed to "churn" and the binary values are transformed to named values to represent the churn. Lastly the column is transformed into a factor type (which will be useful for running the algorithm)
+```{r check-format, warning=FALSE}
+glimpse(training_data)
+vis_dat(training_data)
+glimpse(test_data)
+vis_dat(test_data)
+na_training <-
+  sum(is.na(training_data))
+na_test <-
+  sum(is.na(test_data))
+```
+
+1. The datatype for every variable (feature column) in both datasets is double, although there are variables that only hold integer values (feature_7 to feature_15). This is okay for the training and test datasets, it will be adjusted in the data exploration section in order to get more detailed interpretation of the data.  
+2. There are `r na_training` missing values in the training and `r na_test` in the test dataset.  
+3. The *labels* column is formatted as numeric (dbl). It should be a factor since it is a categorial variable with two levels (yes or no).  
+Let's check this again to be sure:
+
+```{r}
+training_data %>% 
+  count(labels)
+```
+
+First the "label" column will be renamed to "churn" and the binary values are transformed to named values to represent the churn. The column is then transformed into a factor type (which will be needed for running the classification algorithm).
 
 ```{r data-modification}
-#Create new dataframe 
-df_train <- 
-  training_data
-
 #Rename labels
-df_train <- 
-  rename(df_train, churn = labels)
-
-#Change column type and values
 df_train <-
-  df_train %>% 
+  training_data %>% 
+  rename(churn = labels) %>% 
+#Change column type and values
   mutate(
     churn = as.character(churn)
   ) 
 # Change values
-df_train$churn[df_train$churn == "1"] <- "Yes"
-df_train$churn[df_train$churn == "0"] <- "No"
+df_train$churn[df_train$churn == "1"] <- "yes"
+df_train$churn[df_train$churn == "0"] <- "no"
 
 # Change column type to factor
 df_train <-
   df_train %>% 
   mutate(
     churn = as.factor(churn)
-  ) 
+  )
+
+df_train %>% 
+  count(churn)
 
 ```
-
 
 
 ## Data split
-Since the data comes already split into test and train datasets, we only need to create a validation set to be used during the modeling.  
-
-```{r evaluation-split}
-
-set.seed(42)
-
-cv_folds <-
-  vfold_cv(df_train,
-           v=5,
-           strata = churn,
-           breaks = 4)
-
-```
-
+Since the data comes already with a `r train_split`/`r test_split` split into test and train datasets, we only need to create a validation set before modelling.  
+This validation set is used to check the model performance on the training dataset and prevent data leakage.  
+The test set will be used in the end in a final fit in order to see the models performance on unused data.
 
 ## Data exploration
 
+We create a new dataframe to avoid altering the training dataset during the data exploration. 
+
+```{r}
+df_explore <-
+  df_train
+```
 
 ### Data stats
 
 ```{r}
-skim(df_train)
+skim(df_explore)
 ```
 
-
+### Relation to churn variable
 TO DO  
 * Beziehung der Variablen darstellen und Abhängigkeit zu churn rate
 
 * Siehe https://www.kaggle.com/code/blentalikan/insurancechurnprediction
 
-### Create new variable
-
-OFFEN
 * Beziehung von bestehenden Variablen darstellen und intepretieren
 
+### Integer Variables
 
-## Plot data
+### Float Variables
 
 OFFEN
 
@@ -238,14 +251,14 @@ OFFEN
 # list of all numerical data
 
 list_num <- 
-  df_train %>% 
+  df_explore %>% 
   select(where(is.numeric)) %>% 
   names()
 
 
 # list of all categorical data
 list_cat <- 
-  df_train %>% 
+  df_explore %>% 
   select(!where(is.numeric)) %>% 
   names()
 
@@ -261,8 +274,9 @@ Variables
 To DO
 * Integer und Float Unterteilung
 
+# Data preparation
 
-## Data pipeline
+## Data preprocessing recipe
 
 ```{r}
 # Erstelle ein Rezept für die Modelle, wie mit den Daten umgegangen werden soll
@@ -306,14 +320,29 @@ glimpse(prepped_data)
 ```
 
 
-The recipe is prepared such that the last variable "labels" serves as the outcome which trains the data.
+The recipe is prepared such that the churn variable serves as the outcome which the model should predict.
 
-## Model
+## Validation set
 
-```{r}
+For the validation set a k-fold crossvalidation with a set of 5 validation folds will be used. Also, the sample is stratified. This makes sure that every characteristic of the data is properly represented in each sample.
+The validation set is used in order to check the models performance on the training dataset.  
 
-# model specification
+```{r evaluation-split}
+set.seed(42)
+cv_folds <-
+  vfold_cv(df_train,
+           v=5,
+           strata = churn,
+           breaks = 4)
+```
 
+
+# Model
+
+## Model specification
+
+
+```{r specification}
 xgb_spec <-
   # boost_tree nutzt automatisch die empirisch besten Parameter, wenn keine übergeben werden
   boost_tree() %>%
@@ -321,17 +350,25 @@ xgb_spec <-
   # Kann als Klassifikation, oder Regression genutzt werden, deshalb muss das spezifiziert werden
   set_mode("classification")
 
+#show model specification
+xgb_spec
+
+
+```
+
+```{r workflow}
 # workflow pipeline
 # In die Wf Pipeline wird das recipe aufgenommen (es können auch mehrere sein)
 xgb_wflow <-
  workflow() %>%
  add_recipe(df_rec) %>%
  add_model(xgb_spec)
-
+# show workflow
+xgb_wflow
 ```
 
-### Model Execution
-HIER WEITER
+
+## Model execution
 ```{r}
 
 # Erstellt einen Fit der Daten an das Modell und prüft es mit den Folds
@@ -356,6 +393,9 @@ xgb_res %>% collect_metrics(summarize = FALSE)
 
 ```
 
+## Model evaluation
+TO DO
+siehe https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#boosted-tree-xgboost
 ## Predictions
 
 <!-- ```{r} -->
@@ -391,7 +431,7 @@ xgb_res %>% collect_metrics(summarize = FALSE)
 <!-- ``` -->
 
 
-## Final Evaluation
+# Last evaluation (on test set)
 
 <!-- ```{r} -->
 <!-- # Fitte das Modell an die Test Daten, zur Prüfung der Aussagekraft -->
@@ -403,3 +443,11 @@ xgb_res %>% collect_metrics(summarize = FALSE)
 <!--   collect_metrics() -->
 
 <!-- ``` -->
+
+# Additional interpretation
+We have seen that our model performs ....  
+Since the data provided was anonymized, I used some additional research in order to give an overview of potential features that impact the churn rate.
+
+## Relevant features
+
+<!-- Siehe Google Scholar Veröffentlichungen für relevante Features, da Daten anonym -->
