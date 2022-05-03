@@ -23,7 +23,9 @@ output:
   #  includes:
   #   after_body: footer.html # include footer
 ---
+<!-- Setup -->
 
+<!-- Load packages -->
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
@@ -37,6 +39,15 @@ library(tidymodels)
 library(xgboost)
 library(RCurl)
 library(kableExtra)
+library(GGally)
+library(viridis)
+```
+
+<!-- Theme setting -->
+```{r theme-setting, include=FALSE}
+theme_set(
+  theme_light() + theme()
+  )
 ```
 
 # Plan
@@ -48,6 +59,14 @@ Zusätzlich:
 
 * Bewertungskriterien abdecken aus Slack
 * Bewertungskriterien abdecken aus https://drive.google.com/file/d/1AsNHMnbEluH1ikwmp6ulBLqmmiHP3q98/view
+* Am Schluss: Styling überarbeiten und Abbildungsverzeichnis erstellen
+* Dashboard erstellen mit Implementierung der neuen Daten. Inhalte:  
+Customer churn distribution (pie Chart)
+INTERAKTIVE ABBILDUNG MUSS DEFINIERT WERDEN!
+z.B. Korrelation der einzelnen Features mit churn rate darstellen, nach Features und relationshöhe filterbar.
+Tabelle mit Zeilen, die als Churn predicted wurden
+
+
 ## Use case
 
 The goal for this project is to train a classification algorithm with anonymized insurance contract data in order to predict the churn of insurance customers (whether the insurance company will lose a customer or not).
@@ -82,7 +101,7 @@ Load training and test dataset (provided from kaggle - see **https://www.kaggle.
 Note: the training dataset will be used to fit the model.
 The provided test dataset will be treated as new data to simulate the models performance, since the data is unlabeled. 
 
-```{r train-dataset}
+```{r training-dataset}
 LINK_train <- 
   "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Train.csv"
 
@@ -136,7 +155,7 @@ This gives us the following informations:
 
 1. The data seems to be clean already. Further information will be gathered in **Format Data** section.
 
-2. The dimensions for both dataframes are the following:
+2. The datasets are divided by a `r train_split`/`r new_split` split. The dimensions for both dataframes are the following:
 
 * Training set:  
   observations = `r dim_train[1]`   
@@ -145,8 +164,6 @@ This gives us the following informations:
 * New dataset:  
   observations = `r dim_new[1]`  
   variables = `r dim_new[2]`
-  
-This equals a `r train_split`/`r new_split` split.
   
 3. The `r text_spec("labels", color = "red")` column is a boolean (1 or 0) which only appears in the training data set.  
 This variable can be seen as the indicator for churning, since the column doesn't appear in the given test data.  
@@ -177,7 +194,7 @@ na_new <-
 
 We can see that:
 
-1. The datatype for every variable (feature column) in both datasets is double, although there are variables that only hold integer values (feature_7 to feature_15). We will later on see that those features represent categorial variables.
+1. The datatype for every variable (feature column) in both datasets is double, although there are variables that only hold integer values (feature_7 to feature_15). In the **Data exploration** section we will later on see that those features truly only hold discrete values.
 2. There are `r na_training` missing values in the training and `r na_new` in the test dataset.  
 3. The `r text_spec("labels", color = "red")` column is formatted as numeric (dbl). It should be a factor since it is a categorial variable with two levels (yes or no).  
 Let's take a look at the `r text_spec("labels", color = "red")` variable:
@@ -188,25 +205,15 @@ new_training_data %>%
   gt
 ```
 
-First the `r text_spec("labels", color = "red")` column will be renamed to `r text_spec("churn", color = "red")` and the binary values are transformed to named values to represent the churn. The column is then transformed into a factor type. This is needed for running the classification algorithm and it also makes the evaluation plots easier to read (Using `r text_spec("yes", color = "green")` and `r text_spec("no", color = "green")` instead of 1 and 0).
+First the `r text_spec("labels", color = "red")` column will be renamed to `r text_spec("churn", color = "red")`. The column is then transformed into a factor type. This is needed for running the classification algorith.
 
 
 ```{r data-modification}
-#Rename labels
+# Rename labels
 df_train <-
   new_training_data %>% 
   rename(churn = labels) %>% 
-#Change column type and values
-  mutate(
-    churn = as.character(churn)
-  ) 
-# Change values
-df_train$churn[df_train$churn == "1"] <- "yes"
-df_train$churn[df_train$churn == "0"] <- "no"
-
 # Change column type to factor
-df_train <-
-  df_train %>% 
   mutate(
     churn = as.factor(churn)
   )
@@ -229,11 +236,7 @@ df_train %>%
     churn = "Churn",
     churn_total = "Amount",
     percent = "Percent"
-  ) %>% 
-  fmt_number(
-    columns = c(churn_total),
-    suffixing = TRUE
-  ) 
+  )
 ```
 
 
@@ -243,107 +246,167 @@ The **Data exploration** section covers analysis and interpretation of the relat
 
 ## Data overview
 
-IST DAS SINNVOLL? DIE DATEN KÖNNEN NICHT INTERPRETIERT WERDEN DA ANONYM:
+```{r}
+skim(df_train) %>% 
+  gt()
+```
 
-<!-- The summary for the provided training data is: -->
+The overview shows
 
-<!-- ```{r} -->
-<!-- skim(df_train) %>%  -->
-<!--   gt() -->
-<!-- ``` -->
 
-<!-- As we have seen before there are `r dim_train[1]` observations and `r dim_train[2]` variables (columns) in the training data. -->
-
-<!-- * sd: -->
-<!-- *  -->
-
-TO DO 
-siehe Abschnitt 5:   https://www.kaggle.com/code/blentalikan/insurancechurnprediction 
-* Churn Pie Chart
-
+* Feature_7 - 15 appear to be discrete and feature_10 - 12 seem to be binary.
+* Every other feature_ column holds continuous values.
+* The scale is similar for the continuous features and the discrete features respectively. This issue will be solved in the **Data preparation** section through feature scaling (data normalization).
+* Feature_1 and 2-6 have have a positive skew shown by the histograms. This will also be addressed in the **Data preparation** section by performing transformations to approximate a normal distribution for all features.
+* The shown stats (mean, sd, perecentiles) are nearly impossible to interpret at this point since we don't know what the variables mean.
 
 
 ## Data exploration
+In order to get a better understanding of the data and underlying relations between features, we plot the data in different ways.
 
+### Setup
 We create a new dataframe to avoid altering the training dataset during the data exploration. 
 
-```{r}
+```{r save-exploration-df}
 explore_data <-
   df_train
 ```
 
-Then we change the types of feature_7 - feature_15 in order to reflect their categorial nature
+Then we change the binary values to named values to represent the churn in order to make the plots easier to read (Using `r text_spec("yes", color = "green")` and `r text_spec("no", color = "green")` instead of 1 and 0).
 
-### Data stats
+```{r change-binary}
+#Change column type to character to change values
+explore_data <-
+  explore_data %>% 
+  mutate(
+    churn = as.character(churn)
+  ) 
+# Change values
+explore_data$churn[explore_data$churn == "1"] <-
+  "yes"
+explore_data$churn[explore_data$churn == "0"] <-
+  "no"
+#Change column type back to factor
+explore_data <-
+  explore_data %>% 
+  mutate(
+    churn = as.factor(churn)
+  ) 
 
-```{r}
-skim(explore_data)
 ```
 
-### Relation to churn variable
+### Churn Distribution
+
+The ratio of customers that churn within the training data set is depicted below.
+```{r pie-chart}
+explore_data %>% 
+  count(churn, name ="churn_total") %>%
+  mutate(percent = churn_total/sum(churn_total)*100,
+         percent = round(percent, 2)) %>%
+  ggplot(
+  aes(x="",
+    y=percent,
+    fill=churn)
+  ) +
+  geom_bar(
+    stat="identity",
+    width=1
+    ) +
+  coord_polar("y", start = -175) +
+  theme_classic() + 
+  theme(
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  )+
+  scale_fill_manual(
+    values=c("#ffdb58", "#bcd4e6")
+      ) + 
+  labs(
+    x = NULL,
+    y = NULL,
+    fill = NULL,
+    title = "Customer churn distribution") +
+  geom_text(
+    aes(label = paste0(percent, "%")),
+    position = position_stack(vjust=0.5)
+  )
+```
+
+
+### Correlation of variables to churn
 TO DO  
-* Beziehung der Variablen darstellen und Abhängigkeit zu churn rate
+siehe Abschnitt 6:   https://www.kaggle.com/code/blentalikan/insurancechurnprediction 
+* Confusion matrix erzeugen
 
-* Siehe https://www.kaggle.com/code/blentalikan/insurancechurnprediction
-
+### Continuous Variables
+ 
+Siehe 
+https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#categorical-variables
 * Beziehung von bestehenden Variablen darstellen und intepretieren
 
-### Integer Variables
 
-### Float Variables
+### Discrete Variables
 
-OFFEN
+Siehe 
+https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#categorical-variables
+* Beziehung von bestehenden Variablen darstellen und intepretieren
 
-## List of features
-
-
-```{r}
-# list of all numerical data
-
-list_num <- 
-  explore_data %>% 
-  select(where(is.numeric)) %>% 
-  names()
+<!-- ## List of features -->
 
 
-# list of all categorical data
-list_cat <- 
-  explore_data %>% 
-  select(!where(is.numeric)) %>% 
-  names()
+<!-- ```{r } -->
+<!-- # list of all numerical data -->
 
-length(list_num)
-length(list_cat)
-```
+<!-- list_num <-  -->
+<!--   explore_data %>%  -->
+<!--   select(where(is.numeric)) %>%  -->
+<!--   names() -->
 
-There are  
-`r length(list_cat)` categorial  
-`r length(list_num)` numerical  
-Variables
 
-To DO
-* Integer und Float Unterteilung
+<!-- # list of all categorical data -->
+<!-- list_cat <-  -->
+<!--   explore_data %>%  -->
+<!--   select(!where(is.numeric)) %>%  -->
+<!--   names() -->
+
+<!-- length(list_num) -->
+<!-- length(list_cat) -->
+<!-- ``` -->
+
+<!-- There are   -->
+<!-- `r length(list_cat)` categorial   -->
+<!-- `r length(list_num)` numerical   -->
+<!-- Variables -->
+
+<!-- To DO -->
+<!-- * Integer und Float Unterteilung -->
 
 # Data preparation
+
+To DO:  
+Variablen aus Data exploration eingrenzen und Tuning an Modell durchführen.
+
 
 ## Data split
 Although the data already comes with a `r train_split`/`r new_split` split the provided test data will not be used for model training since it is unlabeled and better suited to simulate new data.   Therefore we need to create another data split to test our model with.
 
-```{r}
+```{r data-split}
 # Seeded split to provide the same split everytime the split is made to make sure we always use the same data for model training.
 set.seed(42)
-
+# Split the data with a 75/25 proportion in favor for the training set
 data_split <- initial_split(df_train, # updated data
                            prop = 3/4, 
                            strata = churn)
-
+# Create the dataframes for training and testing
 train_data <- training(data_split) 
 test_data <- testing(data_split)
 ```
 
 
 ## Data preprocessing recipe
-
+To DO
+Normalisierung und feature scaling durchführen
 ```{r}
 # Erstelle ein Rezept für die Modelle, wie mit den Daten umgegangen werden soll
 # Modellierung: Zuerst wird die y (Abhängige) Variable geschrieben, dann ~, dann kommen die unabhängigen Variablen (mit einem . können alle anderen Variablen genutzt werden)
@@ -394,17 +457,21 @@ For the validation set a k-fold crossvalidation with a set of 5 validation folds
 The validation set is used in order to check the models performance on the training dataset.  
 
 ```{r evaluation-split}
+# Fix random generation, also see data split
 set.seed(42)
+# generate the cross validation set 
 cv_folds <-
   vfold_cv(train_data,
-           v=5,
-           strata = churn,
+           v=5, # number of folds
+           strata = churn, # ensure the same proportion of the churn variable in every fold
            breaks = 4)
 ```
 
 
 # Model
-
+TO DO:  
+Beschreiben, wie vorgegangen wird
+Unterschiedliche Modelle ausprobieren und vergleichen.
 ## Model specification
 
 
@@ -513,7 +580,8 @@ siehe https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#booste
 # Additional interpretation
 We have seen that our model performs ....  
 Since the data provided was anonymized, I used some additional research in order to give an overview of potential features that impact the churn rate.
-
+To DO:  
+Research und relevante Features beschreiben
 ## Relevant features
 
 <!-- Siehe Google Scholar Veröffentlichungen für relevante Features, da Daten anonym -->
