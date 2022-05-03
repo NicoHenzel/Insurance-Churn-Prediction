@@ -36,6 +36,7 @@ library(GGally)
 library(tidymodels)
 library(xgboost)
 library(RCurl)
+library(kableExtra)
 ```
 
 # Plan
@@ -85,7 +86,7 @@ The provided test dataset will be treated as new data to simulate the models per
 LINK_train <- 
   "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Train.csv"
 
-training_data <- 
+new_training_data <- 
   read_csv(LINK_train)
 ```
 
@@ -97,12 +98,10 @@ new_data <-
   read_csv(LINK_new)
 ```
 
-## Overview
-Collect some dimensional (amount of variables and observations) information about the dataframes.
-
-```{r dim-df}
+## First look
+```{r dim-df, include=FALSE}
 dim_train <- 
-  dim(training_data)
+  dim(new_training_data)
 dim_new <- 
   dim(new_data)
 
@@ -122,7 +121,7 @@ new_split <-
 Look at the first rows from each dataframe.
 
 ```{r slice-training}
-training_data %>% 
+new_training_data %>% 
   slice_head(n=5) %>% 
   gt()
 ```
@@ -143,13 +142,13 @@ This gives us the following informations:
   observations = `r dim_train[1]`   
   variables = `r dim_train[2]`
   
-* New data set:  
+* New dataset:  
   observations = `r dim_new[1]`  
   variables = `r dim_new[2]`
   
 This equals a `r train_split`/`r new_split` split.
   
-3. The *labels* column is a boolean (1 or 0) which only appears in the training data set.  
+3. The `r text_spec("labels", color = "red")` column is a boolean (1 or 0) which only appears in the training data set.  
 This variable can be seen as the indicator for churning, since the column doesn't appear in the given test data.  
 This also means, that the provided test data can be trated as new data to simulate a churn prediction on.
 
@@ -166,34 +165,36 @@ To DO
 Next we will be inspecting the given data structure and check if there are any missing values in both datasets.
 
 ```{r check-format, warning=FALSE}
-glimpse(training_data)
-vis_dat(training_data)
+glimpse(new_training_data)
+vis_dat(new_training_data)
 glimpse(new_data)
 vis_dat(new_data)
 na_training <-
-  sum(is.na(training_data))
+  sum(is.na(new_training_data))
 na_new <-
   sum(is.na(new_data))
 ```
 
 We can see that:
 
-1. The datatype for every variable (feature column) in both datasets is double, although there are variables that only hold integer values (feature_7 to feature_15). This is okay for the training and test datasets, it will be adjusted in the data exploration section in order to get more detailed interpretation of the data.  
+1. The datatype for every variable (feature column) in both datasets is double, although there are variables that only hold integer values (feature_7 to feature_15). We will later on see that those features represent categorial variables.
 2. There are `r na_training` missing values in the training and `r na_new` in the test dataset.  
-3. The *labels* column is formatted as numeric (dbl). It should be a factor since it is a categorial variable with two levels (yes or no).  
-Let's check this again to be sure:
+3. The `r text_spec("labels", color = "red")` column is formatted as numeric (dbl). It should be a factor since it is a categorial variable with two levels (yes or no).  
+Let's take a look at the `r text_spec("labels", color = "red")` variable:
 
-```{r}
-training_data %>% 
-  count(labels)
+```{r display-labels-variable}
+new_training_data %>% 
+  count(labels) %>% 
+  gt
 ```
 
-First the "label" column will be renamed to "churn" and the binary values are transformed to named values to represent the churn. The column is then transformed into a factor type (which will be needed for running the classification algorithm).
+First the `r text_spec("labels", color = "red")` column will be renamed to `r text_spec("churn", color = "red")` and the binary values are transformed to named values to represent the churn. The column is then transformed into a factor type. This is needed for running the classification algorithm and it also makes the evaluation plots easier to read (Using `r text_spec("yes", color = "green")` and `r text_spec("no", color = "green")` instead of 1 and 0).
+
 
 ```{r data-modification}
 #Rename labels
 df_train <-
-  training_data %>% 
+  new_training_data %>% 
   rename(churn = labels) %>% 
 #Change column type and values
   mutate(
@@ -209,27 +210,57 @@ df_train <-
   mutate(
     churn = as.factor(churn)
   )
+```
 
+This way the churn is more accurately represented by the`r text_spec("churn", color = "red")` variable: 
+
+```{r display-churn-variable}
 df_train %>% 
-  count(churn)
-
+  count(churn, 
+        name ="churn_total") %>%
+  mutate(percent = churn_total/sum(churn_total)*100,
+         percent = round(percent, 2)) %>%
+ gt() %>%
+  tab_header(
+    title = "Insurance customers churn rate ",
+    subtitle = "Anonymized training sample"
+  ) %>%
+  cols_label(
+    churn = "Churn",
+    churn_total = "Amount",
+    percent = "Percent"
+  ) %>% 
+  fmt_number(
+    columns = c(churn_total),
+    suffixing = TRUE
+  ) 
 ```
 
 
-## Data split
-Although the data already comes with a `r train_split`/`r new_split` split the provided test data will not be used for model training since it is unlabeled and better suited to simulate new data. Therefore we need to create another data split to test our model with.
+Note:  
+No new variables will be created, since we work with anonymized data.  
+The **Data exploration** section covers analysis and interpretation of the relations between the variables.
 
-```{r}
-# Seeded split to provide the same split everytime the split is made to make sure we always use the same data for model training.
-set.seed(42)
+## Data overview
 
-data_split <- initial_split(df_train, # updated data
-                           prop = 3/4, 
-                           strata = churn)
+IST DAS SINNVOLL? DIE DATEN KÖNNEN NICHT INTERPRETIERT WERDEN DA ANONYM:
 
-train_data <- training(data_split) 
-test_data <- testing(data_split)
-```
+<!-- The summary for the provided training data is: -->
+
+<!-- ```{r} -->
+<!-- skim(df_train) %>%  -->
+<!--   gt() -->
+<!-- ``` -->
+
+<!-- As we have seen before there are `r dim_train[1]` observations and `r dim_train[2]` variables (columns) in the training data. -->
+
+<!-- * sd: -->
+<!-- *  -->
+
+TO DO 
+siehe Abschnitt 5:   https://www.kaggle.com/code/blentalikan/insurancechurnprediction 
+* Churn Pie Chart
+
 
 
 ## Data exploration
@@ -238,8 +269,10 @@ We create a new dataframe to avoid altering the training dataset during the data
 
 ```{r}
 explore_data <-
-  train_data
+  df_train
 ```
+
+Then we change the types of feature_7 - feature_15 in order to reflect their categorial nature
 
 ### Data stats
 
@@ -292,6 +325,22 @@ To DO
 * Integer und Float Unterteilung
 
 # Data preparation
+
+## Data split
+Although the data already comes with a `r train_split`/`r new_split` split the provided test data will not be used for model training since it is unlabeled and better suited to simulate new data.   Therefore we need to create another data split to test our model with.
+
+```{r}
+# Seeded split to provide the same split everytime the split is made to make sure we always use the same data for model training.
+set.seed(42)
+
+data_split <- initial_split(df_train, # updated data
+                           prop = 3/4, 
+                           strata = churn)
+
+train_data <- training(data_split) 
+test_data <- testing(data_split)
+```
+
 
 ## Data preprocessing recipe
 
