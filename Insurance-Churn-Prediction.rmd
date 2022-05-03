@@ -78,6 +78,9 @@ Churn rate is decreasing after implementation of recommendation.
 
 Load training and test dataset (provided from kaggle - see **https://www.kaggle.com/datasets/k123vinod/insurance-churn-prediction-weekend-hackathon**)
 
+Note: the training dataset will be used to fit the model.
+The provided test dataset will be treated as new data to simulate the models performance, since the data is unlabeled. 
+
 ```{r train-dataset}
 LINK_train <- 
   "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Train.csv"
@@ -86,12 +89,12 @@ training_data <-
   read_csv(LINK_train)
 ```
 
-```{r test-dataset}
-LINK_test <- 
+```{r new-dataset}
+LINK_new <- 
   "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Test.csv"
 
-test_data <- 
-  read_csv(LINK_test)
+new_data <- 
+  read_csv(LINK_new)
 ```
 
 ## Overview
@@ -100,19 +103,19 @@ Collect some dimensional (amount of variables and observations) information abou
 ```{r dim-df}
 dim_train <- 
   dim(training_data)
-dim_test <- 
-  dim(test_data)
+dim_new <- 
+  dim(new_data)
 
 total_obs <- 
-  dim_train[1] + dim_test[1]
+  dim_train[1] + dim_new[1]
 
 train_split <- 
   round(
     100 * (dim_train[1]/total_obs)
     )
-test_split <-
+new_split <-
   round(
-    100 * (dim_test[1]/total_obs)
+    100 * (dim_new[1]/total_obs)
     )
 ```
 
@@ -125,14 +128,14 @@ training_data %>%
 ```
 
 ```{r slice-test}
-test_data %>% 
+new_data %>% 
   slice_head(n=5) %>% 
   gt()
 ```
 
 This gives us the following informations:
 
-1. The data seems to be clean already. Further information will be gathered in **Format Data* section.
+1. The data seems to be clean already. Further information will be gathered in **Format Data** section.
 
 2. The dimensions for both dataframes are the following:
 
@@ -140,14 +143,15 @@ This gives us the following informations:
   observations = `r dim_train[1]`   
   variables = `r dim_train[2]`
   
-* Test set:  
-  observations = `r dim_test[1]`  
-  variables = `r dim_test[2]`
+* New data set:  
+  observations = `r dim_new[1]`  
+  variables = `r dim_new[2]`
   
-This equals a `r train_split`/`r test_split` split
+This equals a `r train_split`/`r new_split` split.
   
 3. The *labels* column is a boolean (1 or 0) which only appears in the training data set.  
-This variable can be seen as the indicator for churning, since the column doesn't appear in the given test data (this data should be predicted).
+This variable can be seen as the indicator for churning, since the column doesn't appear in the given test data.  
+This also means, that the provided test data can be trated as new data to simulate a churn prediction on.
 
 
 ## Clean data
@@ -164,16 +168,18 @@ Next we will be inspecting the given data structure and check if there are any m
 ```{r check-format, warning=FALSE}
 glimpse(training_data)
 vis_dat(training_data)
-glimpse(test_data)
-vis_dat(test_data)
+glimpse(new_data)
+vis_dat(new_data)
 na_training <-
   sum(is.na(training_data))
-na_test <-
-  sum(is.na(test_data))
+na_new <-
+  sum(is.na(new_data))
 ```
 
+We can see that:
+
 1. The datatype for every variable (feature column) in both datasets is double, although there are variables that only hold integer values (feature_7 to feature_15). This is okay for the training and test datasets, it will be adjusted in the data exploration section in order to get more detailed interpretation of the data.  
-2. There are `r na_training` missing values in the training and `r na_test` in the test dataset.  
+2. There are `r na_training` missing values in the training and `r na_new` in the test dataset.  
 3. The *labels* column is formatted as numeric (dbl). It should be a factor since it is a categorial variable with two levels (yes or no).  
 Let's check this again to be sure:
 
@@ -211,23 +217,34 @@ df_train %>%
 
 
 ## Data split
-Since the data comes already with a `r train_split`/`r test_split` split into test and train datasets, we only need to create a validation set before modelling.  
-This validation set is used to check the model performance on the training dataset and prevent data leakage.  
-The test set will be used in the end in a final fit in order to see the models performance on unused data.
+Although the data already comes with a `r train_split`/`r new_split` split the provided test data will not be used for model training since it is unlabeled and better suited to simulate new data. Therefore we need to create another data split to test our model with.
+
+```{r}
+# Seeded split to provide the same split everytime the split is made to make sure we always use the same data for model training.
+set.seed(42)
+
+data_split <- initial_split(df_train, # updated data
+                           prop = 3/4, 
+                           strata = churn)
+
+train_data <- training(data_split) 
+test_data <- testing(data_split)
+```
+
 
 ## Data exploration
 
 We create a new dataframe to avoid altering the training dataset during the data exploration. 
 
 ```{r}
-df_explore <-
-  df_train
+explore_data <-
+  train_data
 ```
 
 ### Data stats
 
 ```{r}
-skim(df_explore)
+skim(explore_data)
 ```
 
 ### Relation to churn variable
@@ -251,14 +268,14 @@ OFFEN
 # list of all numerical data
 
 list_num <- 
-  df_explore %>% 
+  explore_data %>% 
   select(where(is.numeric)) %>% 
   names()
 
 
 # list of all categorical data
 list_cat <- 
-  df_explore %>% 
+  explore_data %>% 
   select(!where(is.numeric)) %>% 
   names()
 
@@ -285,10 +302,10 @@ To DO
 # y Variable ist die, die betrachtet werden soll durch das Modell (welche soll ausgewertet werden, abghängig von den anderen Variablen)
 # Die restlichen Variablen werden mitgegeben, die aus unserer Sicht die Ergebnis Variable (y) am meisten Beeinflussen
 
-df_rec <-
+churn_rec <-
   recipe(
     churn ~ .,
-    data = df_train) %>%
+    data = train_data) %>%
   # Imputation (fehlende Variablen werden durch Median ersetzt) für alle numerischen, außer die Ergebnisvariable (y)
   # Imputationen sollten mit Vorsicht genutzt werden, da viele
    #step_impute_median(all_numeric(), -all_outcomes()) %>%
@@ -307,12 +324,12 @@ df_rec <-
 
 ```{r}
 # Anzeigen, was mit df_rec gemacht werden soll
-summary(df_rec)
+summary(churn_rec)
 ```
 
 ```{r}
 prepped_data <- 
-  df_rec %>% # use the recipe object
+  churn_rec %>% # use the recipe object
   prep() %>% # perform the recipe on training data
   juice() # extract only the preprocessed dataframe 
 
@@ -330,7 +347,7 @@ The validation set is used in order to check the models performance on the train
 ```{r evaluation-split}
 set.seed(42)
 cv_folds <-
-  vfold_cv(df_train,
+  vfold_cv(train_data,
            v=5,
            strata = churn,
            breaks = 4)
@@ -361,7 +378,7 @@ xgb_spec
 # In die Wf Pipeline wird das recipe aufgenommen (es können auch mehrere sein)
 xgb_wflow <-
  workflow() %>%
- add_recipe(df_rec) %>%
+ add_recipe(churn_rec) %>%
  add_model(xgb_spec)
 # show workflow
 xgb_wflow
