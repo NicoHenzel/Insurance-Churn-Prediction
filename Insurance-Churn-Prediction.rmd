@@ -13,8 +13,8 @@ output:
   highlight: default # syntax highlighting style 
   number_sections: yes # numbering of sections
   theme: paper # style option
-  fig_height: 4 # figure height
-  fig_width: 8 # figure width
+  # fig_height: 4 # figure height
+  # fig_width: 8 # figure width
   toc: yes # table of content
   toc_float: 
     collapsed: false # show full toc
@@ -24,10 +24,18 @@ output:
   #   after_body: footer.html # include footer
 ---
 <!-- Setup -->
-
-<!-- Load packages -->
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = 0.618,
+  out.width="70%",
+  fig.align = "center"
+  )
+```
+
+<!-- Load packages -->
+```{r libraries, include=FALSE}
 library(tidyverse)
 library(stringr)
 library(gt)
@@ -41,6 +49,9 @@ library(RCurl)
 library(kableExtra)
 library(GGally)
 library(viridis)
+library(reshape2)
+library(ggplot2)
+library(tibble)
 ```
 
 <!-- Theme setting -->
@@ -85,12 +96,12 @@ https://docs.google.com/presentation/d/1vjm5YdmOH5LrubFhHf1vlqW2O9Z2UqdWA8biN3e8
 
 ## Metrics
 
-Succesful when: 
+The performance of the model itself will be measured by the **F1-Score**.
 
-* Churn prediction on training data > 95 % (not overtrained)
+
+The model is succesful when: 
+
 * Visualized recommendations allow case handlers to identify potential churn and get in contact with customers.
-* *Can only be tested in a real environment*:  
-Churn rate is decreasing after implementation of recommendation.
 
 # Data understanding
 
@@ -101,7 +112,7 @@ Load training and test dataset (provided from kaggle - see **https://www.kaggle.
 Note: the training dataset will be used to fit the model.
 The provided test dataset will be treated as new data to simulate the models performance, since the data is unlabeled. 
 
-```{r training-dataset}
+```{r load-training-dataset}
 LINK_train <- 
   "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Train.csv"
 
@@ -109,7 +120,7 @@ new_training_data <-
   read_csv(LINK_train)
 ```
 
-```{r new-dataset}
+```{r load-new-dataset}
 LINK_new <- 
   "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Test.csv"
 
@@ -172,11 +183,8 @@ This also means, that the provided test data can be trated as new data to simula
 
 ## Clean data
 
-The datasets are already clean with lowercase column names without spaces and no special characters.
+The datasets are already clean (lowercase column names without spaces and no special characters).
 This makes it easier for us, since no data cleaning needs to be performed.
-
-To DO
-* Jan fragen, ob das in Ordnung ist
 
 ## Format data
 Next we will be inspecting the given data structure and check if there are any missing values in both datasets.
@@ -246,7 +254,7 @@ The **Data exploration** section covers analysis and interpretation of the relat
 
 ## Data overview
 
-```{r}
+```{r skim-df-train}
 skim(df_train) %>% 
   gt()
 ```
@@ -295,10 +303,10 @@ explore_data <-
 
 ```
 
-### Churn Distribution
+### Churn distribution
 
-The ratio of customers that churn within the training data set is depicted below.
-```{r pie-chart}
+The ratio of customers that have churned within the training data set is depicted below.
+```{r pie-chart, fig1, echo=FALSE}
 explore_data %>% 
   count(churn, name ="churn_total") %>%
   mutate(percent = churn_total/sum(churn_total)*100,
@@ -318,7 +326,7 @@ explore_data %>%
     axis.line = element_blank(),
     axis.text = element_blank(),
     axis.ticks = element_blank()
-  )+
+  ) +
   scale_fill_manual(
     values=c("#ffdb58", "#bcd4e6")
       ) + 
@@ -326,7 +334,8 @@ explore_data %>%
     x = NULL,
     y = NULL,
     fill = NULL,
-    title = "Customer churn distribution") +
+    title = "Customer churn distribution",
+    subtitle = "For insurance contracts") +
   geom_text(
     aes(label = paste0(percent, "%")),
     position = position_stack(vjust=0.5)
@@ -334,53 +343,147 @@ explore_data %>%
 ```
 
 
-### Correlation of variables to churn
-TO DO  
-siehe Abschnitt 6:   https://www.kaggle.com/code/blentalikan/insurancechurnprediction 
-* Confusion matrix erzeugen
+### Correlation matrix
+
+The correlation matrix helps us see different relations between the features as it may indicate a predictive relationship between variables (FUßNOTE EINFÜGEN: https://en.wikipedia.org/wiki/Correlation).
+It is formed by calculating the correlation coefficient **r** between each feature. **r** ranges from -1 to 1 and indicates the strength and direction of the linear relation:  
+Positive numbers indicate that greater values of one variable lead to greater values of the other variable which also holds true for lower values (similar behavior).  
+Negative numbers indicate that greater values of one variable correspond to lesser values of the other (opposite behavior).  
+(See: https://en.wikipedia.org/wiki/Correlation and https://en.wikipedia.org/wiki/Covariance)
+```{r correlation-matrix, fig2, out.width="90%", fig.width = 9, echo=FALSE}
+
+
+# Computing correlation coeffeicient matrix - has to be done on new_training_data since correlation is calculated only for numeric values
+correlation_matrix <- 
+  new_training_data %>%
+  # change labels to churn for plot
+  rename(churn = labels) %>% 
+  # cor() uses the pearson method as default
+  cor()
+
+# creat correlation matrix with ggplot 
+ggplot(
+  melt(correlation_matrix),
+  aes(Var1, Var2, fill=value)
+  ) +
+  geom_tile() +
+  scale_fill_gradient2(
+    low="blue",
+    mid="white",
+    high="gold"
+    ) +
+  theme_minimal() +
+  coord_equal() +
+  labs(
+    x= "",
+    y= "",
+    fill= "Corr",
+    title = "Correlation matrix",
+    subtitle = "For all features in the training data") +
+  theme(
+    axis.text.x=element_text(
+      size=13,
+      angle=90,
+      vjust=1,
+      hjust=1, 
+      margin=margin(-3,0,0,0)
+      ),
+  axis.text.y=element_text(
+    size=13, 
+    margin=margin(0,-3,0,0)
+    ),
+  panel.grid.major=element_blank()
+  )
+
+```
+
+
+```{r churn-correlation-bar-plot, fig3, echo=FALSE}
+correlation_matrix %>% 
+  as.data.frame() %>% 
+  select(churn) %>% 
+  rename(values = churn) %>% 
+  tibble::rownames_to_column() %>% 
+  ggplot(
+    aes(x = reorder(rowname, -values),
+        y = values,
+        fill = values)
+    )+
+  geom_col() + 
+  labs(
+    x= "Feature",
+    y= "Correlation magnitude",
+    title = "Correlation to churn",
+    subtitle = "In descending order") +
+  # scale_fill_viridis() +
+  scale_fill_gradient2(
+    low="white",
+    mid="blue",
+    high="gold"
+    ) +
+  scale_y_continuous(
+    breaks = seq(-0.2, 1, 0.2)
+    ) +
+  theme(
+    axis.text.x=element_text(
+      #size=10,
+      angle=90,
+      vjust=0.25,
+      hjust=1
+      )
+    )
+
+```
+
+we are interested in the correlation between `r text_spec("churn", color = "red")` and the other features:    
+* It correlates not or very weak to almost all features  
+* `r text_spec("feature_3", color = "red")` has a moderat positive correlation with `r text_spec("churn", color = "red")`.  
+* `r text_spec("feature_5 & 6", color = "red")` correlate slightly positive.  
+* `r text_spec("feature_11 - 13", color = "red")` correlate slightly negative.
+
 
 ### Continuous Variables
  
-Siehe 
-https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#categorical-variables
+<!-- Siehe  -->
+<!-- https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#categorical-variables -->
 * Beziehung von bestehenden Variablen darstellen und intepretieren
 
 
 ### Discrete Variables
 
-Siehe 
-https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#categorical-variables
+<!-- Siehe  -->
+<!-- https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#categorical-variables -->
 * Beziehung von bestehenden Variablen darstellen und intepretieren
 
-<!-- ## List of features -->
+## List of features
 
 
-<!-- ```{r } -->
-<!-- # list of all numerical data -->
+```{r }
+# list of all numerical data
 
-<!-- list_num <-  -->
-<!--   explore_data %>%  -->
-<!--   select(where(is.numeric)) %>%  -->
-<!--   names() -->
+list_num <-
+  explore_data %>%
+  select(where(is.numeric)) %>%
+  names()
 
 
-<!-- # list of all categorical data -->
-<!-- list_cat <-  -->
-<!--   explore_data %>%  -->
-<!--   select(!where(is.numeric)) %>%  -->
-<!--   names() -->
+# list of all categorical data
+list_cat <-
+  explore_data %>%
+  select(!where(is.numeric)) %>%
+  names()
 
-<!-- length(list_num) -->
-<!-- length(list_cat) -->
-<!-- ``` -->
+length(list_num)
+length(list_cat)
+```
 
-<!-- There are   -->
-<!-- `r length(list_cat)` categorial   -->
-<!-- `r length(list_num)` numerical   -->
-<!-- Variables -->
+There are
+`r length(list_cat)` categorial
+`r length(list_num)` numerical
+Variables
 
-<!-- To DO -->
-<!-- * Integer und Float Unterteilung -->
+To DO
+* Integer und Float Unterteilung
 
 # Data preparation
 
@@ -529,39 +632,6 @@ xgb_res %>% collect_metrics(summarize = FALSE)
 ## Model evaluation
 TO DO
 siehe https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#boosted-tree-xgboost
-## Predictions
-
-<!-- ```{r} -->
-<!-- # Gibt die Prediction für die churn rate bezogen auf die Trainingsdaten -->
-<!-- assess_res <- collect_predictions(xgb_res) -->
-
-<!-- assess_res -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # Zeige die top ten der am meisten abweichenden Vorhersagen -->
-<!-- # Ermöglicht zusätzliche Daten Evaluierung -->
-<!-- wrongest_prediction <- -->
-<!--   assess_res %>% -->
-<!--   mutate(residual = churn - .) %>% -->
-<!--   arrange(desc(abs(residual))) %>% -->
-<!--   slice_head(n = 10) -->
-
-<!-- wrongest_prediction -->
-
-<!-- ``` -->
-
-
-<!-- ```{r} -->
-<!-- # Genauere Untersuchung der Abweichungen, indem die Einträge aus der Tabelle der trainings Daten angezeigt werden -->
-<!-- # Ermöglicht einzelne Untersuchung der Datenpunkte -->
-
-<!-- errors <- -->
-<!--   train_data %>% -->
-<!--   dplyr::slice(wrongest_prediction$.row) -->
-
-<!-- ``` -->
 
 
 # Last evaluation (on test set)
