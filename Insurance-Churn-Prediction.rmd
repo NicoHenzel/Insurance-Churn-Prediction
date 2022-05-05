@@ -343,7 +343,7 @@ explore_data %>%
 ```
 
 
-### Correlation matrix
+### Correlation to churn 
 
 The correlation matrix helps us see different relations between the features as it may indicate a predictive relationship between variables (FUßNOTE EINFÜGEN: https://en.wikipedia.org/wiki/Correlation).
 It is formed by calculating the correlation coefficient **r** between each feature. **r** ranges from -1 to 1 and indicates the strength and direction of the linear relation:  
@@ -397,6 +397,7 @@ ggplot(
 
 ```
 
+It is also useful to show the specific correlation of each feature to our churn variable:
 
 ```{r churn-correlation-bar-plot, fig3, echo=FALSE}
 correlation_matrix %>% 
@@ -435,7 +436,8 @@ correlation_matrix %>%
 
 ```
 
-we are interested in the correlation between `r text_spec("churn", color = "red")` and the other features:    
+We can see that the correlation between `r text_spec("churn", color = "red")` and the other features is the following:
+
 * It correlates not or very weak to almost all features  
 * `r text_spec("feature_3", color = "red")` has a moderat positive correlation with `r text_spec("churn", color = "red")`.  
 * `r text_spec("feature_5 & 6", color = "red")` correlate slightly positive.  
