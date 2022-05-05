@@ -22,6 +22,7 @@
 body {
 	font-family: 'Source Sans Pro', sans-serif;
 	font-weight: 300;
+	font-size:  150%;
 	background-color: #ffffff;
 	color: #222;
 	counter-reset: li;

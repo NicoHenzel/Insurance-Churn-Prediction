@@ -28,7 +28,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(
   fig.width = 6,
-  fig.asp = 0.618,
+  fig.asp = 1,
   out.width="70%",
   fig.align = "center"
   )
@@ -52,6 +52,8 @@ library(viridis)
 library(reshape2)
 library(ggplot2)
 library(tibble)
+library(purrr)
+library(Hmisc)
 ```
 
 <!-- Theme setting -->
@@ -202,9 +204,9 @@ na_new <-
 
 We can see that:
 
-1. The datatype for every variable (feature column) in both datasets is double, although there are variables that only hold integer values (feature_7 to feature_15). In the **Data exploration** section we will later on see that those features truly only hold discrete values.
+1. The datatype for every variable (feature column) in both datasets is double, although there are variables that only hold integer values (feature_7 to feature_15). In the **Data exploration** section we will inspect the difference between integer and float variables.
 2. There are `r na_training` missing values in the training and `r na_new` in the test dataset.  
-3. The `r text_spec("labels", color = "red")` column is formatted as numeric (dbl). It should be a factor since it is a categorial variable with two levels (yes or no).  
+3. The `r text_spec("labels", color = "red")` column is formatted as numeric (dbl). It should be a factor since it is a categorial variable with two levels (1 or 0).  
 Let's take a look at the `r text_spec("labels", color = "red")` variable:
 
 ```{r display-labels-variable}
@@ -259,14 +261,26 @@ skim(df_train) %>%
   gt()
 ```
 
+<!-- ```{r scatmat} -->
+<!-- df_train %>%  -->
+<!--   select(1:7) %>%  -->
+<!--   ggscatmat(alpha = 0.2) -->
+
+<!-- df_train %>%  -->
+<!--   select(8:16) %>%  -->
+<!--   ggscatmat(alpha = 0.2) -->
+
+<!-- ``` -->
+
+
 The overview shows
 
 
-* Feature_7 - 15 appear to be discrete and feature_10 - 12 seem to be binary.
-* Every other feature_ column holds continuous values.
-* The scale is similar for the continuous features and the discrete features respectively. This issue will be solved in the **Data preparation** section through feature scaling (data normalization).
-* Feature_1 and 2-6 have have a positive skew shown by the histograms. This will also be addressed in the **Data preparation** section by performing transformations to approximate a normal distribution for all features.
-* The shown stats (mean, sd, perecentiles) are nearly impossible to interpret at this point since we don't know what the variables mean.
+* Feature_7 - 15 are discrete and furthermore feature_10 - 12 seem to be binary (1 or 0).
+* Every other feature column holds continuous values.
+* The maximum and minimum values differ quite a bit, which means the scale for the variables have different scales. This issue will be solved in the **Data preparation** section through feature scaling (data normalization).
+* Feature 0-6 have a positive skew shown by the histograms. This will also be addressed in the **Data preparation** section by performing transformations to approximate a normal distribution for all features.
+* The shown stats (mean, sd, perecentiles) are nearly impossible to interpret at this point since we don't know what the variables itself mean.
 
 
 ## Data exploration
@@ -302,6 +316,9 @@ explore_data <-
   ) 
 
 ```
+
+
+
 
 ### Churn distribution
 
@@ -350,7 +367,7 @@ It is formed by calculating the correlation coefficient **r** between each featu
 Positive numbers indicate that greater values of one variable lead to greater values of the other variable which also holds true for lower values (similar behavior).  
 Negative numbers indicate that greater values of one variable correspond to lesser values of the other (opposite behavior).  
 (See: https://en.wikipedia.org/wiki/Correlation and https://en.wikipedia.org/wiki/Covariance)
-```{r correlation-matrix, fig2, out.width="90%", fig.width = 9, echo=FALSE}
+```{r correlation-matrix, fig2, fig.asp = 1, fig.width = 9, echo=FALSE}
 
 
 # Computing correlation coeffeicient matrix - has to be done on new_training_data since correlation is calculated only for numeric values
@@ -415,7 +432,8 @@ correlation_matrix %>%
     x= "Feature",
     y= "Correlation magnitude",
     title = "Correlation to churn",
-    subtitle = "In descending order") +
+    subtitle = "In descending order"
+    ) +
   # scale_fill_viridis() +
   scale_fill_gradient2(
     low="white",
@@ -438,59 +456,228 @@ correlation_matrix %>%
 
 We can see that the correlation between `r text_spec("churn", color = "red")` and the other features is the following:
 
-* It correlates not or very weak to almost all features  
+* It correlates not or very weak with most of the features  
 * `r text_spec("feature_3", color = "red")` has a moderat positive correlation with `r text_spec("churn", color = "red")`.  
 * `r text_spec("feature_5 & 6", color = "red")` correlate slightly positive.  
-* `r text_spec("feature_11 - 13", color = "red")` correlate slightly negative.
+* `r text_spec("feature_11 & 13", color = "red")` correlate slightly negative.
 
+To further inspect the relation between `r text_spec("churn", color = "red")` and other variables we will create plots for each variable.
 
-### Continuous Variables
+### Float Variables
+
+We will start with boxplots and histograms for the float variables.
+
+```{r boxplot-multiplot-float, fig.asp=0.618, echo=FALSE}
+# Credits for the code chunks goes to:
+# https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#evaluate-models
+
+print_boxplot_float <- function(.y_var){
+  
+  # convert strings to variable
+  y_var <- sym(.y_var) 
  
-<!-- Siehe  -->
-<!-- https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#categorical-variables -->
-* Beziehung von bestehenden Variablen darstellen und intepretieren
+  # unquote variables using {{}}
+  explore_data %>% 
+    # Filter out some extreme outliers to better display the plots
+    filter(
+      feature_1 < 10,
+      feature_4 < 8,
+      feature_5 < 5,
+      feature_6 < 10
+      ) %>% 
+  ggplot(
+    aes(x = churn,
+        y = {{y_var}},
+        fill = churn,
+        color = churn
+        )) +
+    geom_boxplot(alpha=0.4) +
+    labs(
+      x = "Churn",
+      title = "Relation to churn",
+      subtitle = "For every float variable"
+    ) +
+    theme(legend.position = "none") +
+    scale_color_manual(values = c("#ffdb58", "#bcd4e6")) +
+    scale_fill_grey()
+    # scale_fill_viridis_d()
+  
+} 
 
+y_var_float <-
+  explore_data %>% 
+  # select feature_0 - 6 since those contain float numbers
+  select(1:7) %>% 
+  # obtain names
+  variable.names()
 
-### Discrete Variables
-
-<!-- Siehe  -->
-<!-- https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#categorical-variables -->
-* Beziehung von bestehenden Variablen darstellen und intepretieren
-
-## List of features
-
-
-```{r }
-# list of all numerical data
-
-list_num <-
-  explore_data %>%
-  select(where(is.numeric)) %>%
-  names()
-
-
-# list of all categorical data
-list_cat <-
-  explore_data %>%
-  select(!where(is.numeric)) %>%
-  names()
-
-length(list_num)
-length(list_cat)
+map(y_var_float, print_boxplot_float)
 ```
 
-There are
-`r length(list_cat)` categorial
-`r length(list_num)` numerical
-Variables
+```{r bar-multiplot-float, fig.asp=0.618, echo=FALSE}
+# Credits for the code chunks goes to:
+# https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#evaluate-models
 
-To DO
-* Integer und Float Unterteilung
+
+print_bar_float <- function(.x_var){
+  
+  # convert strings to variable
+  x_var <- sym(.x_var) 
+ 
+  # unquote variables using {{}}
+  explore_data %>% 
+  ggplot(
+    aes(x = {{x_var}})) +
+    geom_histogram(bins = 20, fill = "blue") +
+    labs(
+      y = "Frequency",
+      title = "Histogram of every float variable",
+      subtitle = "To check value range"
+    ) 
+    # theme(legend.position = "none") +
+    # scale_color_manual(values = c("#ffdb58", "#bcd4e6")) +
+    # scale_fill_grey()
+    # # scale_fill_viridis_d()
+  
+} 
+
+x_var_float <-
+  explore_data %>% 
+  # select feature_0 - 6 since those contain float numbers
+  select(1:7) %>%
+  # obtain names
+  variable.names()
+
+map(x_var_float, print_bar_float)
+```
+
+
+This confirms our previous insights from the **Data overview** and **Correlation to churn ** section:  
+
+* Most of the variables do not affect the churn.  
+
+* Only `r text_spec("feature_3", color = "red")` has a noticeable impact on `r text_spec("churn", color = "red")`. 
+
+* `r text_spec("feature_5 & 6", color = "red")` can be interesting candidates for model training. This will be testes in the **Model** section
+
+* There are alot of outliers present for almost every feature. This can be seen in the histograms - the distributions are positive skewed (Note that `r text_spec("features 1, 4, 5 & 6", color = "red")` have been filtered to better display the respective boxplots).
+
+* The scales for float variables are very different.
+
+### Integer Variables
+
+Next up are boxplots for the integer variables.
+
+```{r boxplot-function-int, fig.asp=0.618, echo=FALSE}
+# Credits for the code chunks goes to:
+# https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#evaluate-models
+
+print_boxplot_int <- function(.y_var){
+  
+  # convert strings to variable
+  y_var <- sym(.y_var) 
+ 
+  # unquote variables using {{}}
+  explore_data %>% 
+    # Filter out some extreme outliers to better display the plots
+    # filter(
+    #   feature_1 < 10,
+    #   feature_4 < 8,
+    #   feature_5 < 5,
+    #   feature_6 < 10
+    #   ) %>% 
+  ggplot(
+    aes(x = churn,
+        y = {{y_var}},
+        fill = churn,
+        color = churn
+        )) +
+    geom_boxplot(alpha=0.4) +
+    labs(
+      x = "Churn",
+      title = "Relation to churn",
+      subtitle = "For every integer variable"
+    ) +
+    theme(legend.position = "none") +
+    scale_color_manual(values = c("#ffdb58", "#bcd4e6")) +
+    scale_fill_grey()
+    # scale_fill_viridis_d()
+  
+} 
+
+y_var_int <-
+  explore_data %>% 
+  # select feature_0 - 6 since those contain float numbers
+  select(8:16) %>% 
+  # obtain names
+  variable.names()
+
+map(y_var_int, print_boxplot_int)
+```
+
+
+```{r bar-multiplot-int, fig.asp=0.618, echo=FALSE}
+# Credits for the code chunks goes to:
+# https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#evaluate-models
+
+
+print_bar_int <- function(.x_var){
+  
+  # convert strings to variable
+  x_var <- sym(.x_var) 
+ 
+  # unquote variables using {{}}
+  explore_data %>% 
+    # Filter out some extreme outliers to better display the plots
+  ggplot(
+    aes(x = {{x_var}},
+ 
+        )) +
+    geom_histogram(bins = 20, fill = "blue") +
+    labs(
+      y = "Frequency",
+      title = "Histogram of every int variable",
+      subtitle = "To check value range"
+    ) 
+    # theme(legend.position = "none") +
+    # scale_color_manual(values = c("#ffdb58", "#bcd4e6")) +
+    # scale_fill_grey()
+    # # scale_fill_viridis_d()
+  
+} 
+
+x_var_int <-
+  explore_data %>% 
+  # select feature_0 - 6 since those contain float numbers
+  select(8:16) %>%
+  # obtain names
+  variable.names()
+
+map(x_var_int, print_bar_int)
+```
+
+
+Again, this is a confirmation of what we have seen before:
+
+* `r text_spec("feature 11", color = "red")` has a noticeable impact on the `r text_spec("churn", color = "red")` variable.
+
+* `r text_spec("feature 13", color = "red")` can also be an interesting candidate for model training. This will be tested in the **Model** section.
+
+* `r text_spec("feature 7 - 15", color = "red")` contain discrete integer values, in different levels. `r text_spec("feature 10 - 12", color = "red")` contain binary values (0 and 1) for example.
+
+* The scales for integer variables are also different (although not to the same extent as for the float variables).
+
+
+As a conclusion, we will train our model with 
+
+* `r text_spec("feature 3", color = "red")`
+* `r text_spec("feature 5", color = "red")`
+* `r text_spec("feature 6", color = "red")`
+* `r text_spec("feature 11", color = "red")`
+* `r text_spec("feature 13", color = "red")`
+
 
 # Data preparation
-
-To DO:  
-Variablen aus Data exploration eingrenzen und Tuning an Modell durchführen.
 
 
 ## Data split
