@@ -261,26 +261,34 @@ skim(df_train) %>%
   gt()
 ```
 
-<!-- ```{r scatmat} -->
-<!-- df_train %>%  -->
-<!--   select(1:7) %>%  -->
-<!--   ggscatmat(alpha = 0.2) -->
-
-<!-- df_train %>%  -->
-<!--   select(8:16) %>%  -->
-<!--   ggscatmat(alpha = 0.2) -->
-
-<!-- ``` -->
-
-
-The overview shows
-
+The overview shows:  
 
 * Feature_7 - 15 are discrete and furthermore feature_10 - 12 seem to be binary (1 or 0).
 * Every other feature column holds continuous values.
 * The maximum and minimum values differ quite a bit, which means the scale for the variables have different scales. This issue will be solved in the **Data preparation** section through feature scaling (data normalization).
 * Feature 0-6 have a positive skew shown by the histograms. This will also be addressed in the **Data preparation** section by performing transformations to approximate a normal distribution for all features.
 * The shown stats (mean, sd, perecentiles) are nearly impossible to interpret at this point since we don't know what the variables itself mean.
+
+## Data split
+
+Before exploring the data we perform a data split. The **Data exploration** will only be done on the training set. This is crucial so we don't use any information from the training set in our model building phase. Although the data already comes with a `r train_split`/`r new_split` split the provided test data will not be used for model training since it is unlabeled and better suited to simulate new data.
+
+```{r initial-data-split}
+
+# Seeded split to provide the same split everytime the split is made to make sure we always use the same data for model training.
+set.seed(42)
+# Split the data with a 75/25 proportion in favor for the training set
+data_split <- 
+  initial_split(
+    df_train, # original training dataset
+    prop = 3/4, # 75/25 split
+    strata = churn # stratified on churn variable
+    )
+# Create the dataframes for training and testing
+train_data <- training(data_split) 
+test_data <- testing(data_split)
+```
+
 
 
 ## Data exploration
@@ -291,7 +299,7 @@ We create a new dataframe to avoid altering the training dataset during the data
 
 ```{r save-exploration-df}
 explore_data <-
-  df_train
+  train_data
 ```
 
 Then we change the binary values to named values to represent the churn in order to make the plots easier to read (Using `r text_spec("yes", color = "green")` and `r text_spec("no", color = "green")` instead of 1 and 0).
@@ -316,8 +324,6 @@ explore_data <-
   ) 
 
 ```
-
-
 
 
 ### Churn distribution
@@ -500,8 +506,6 @@ print_boxplot_float <- function(.y_var){
     theme(legend.position = "none") +
     scale_color_manual(values = c("#ffdb58", "#bcd4e6")) +
     scale_fill_grey()
-    # scale_fill_viridis_d()
-  
 } 
 
 y_var_float <-
@@ -534,11 +538,6 @@ print_bar_float <- function(.x_var){
       title = "Histogram of every float variable",
       subtitle = "To check value range"
     ) 
-    # theme(legend.position = "none") +
-    # scale_color_manual(values = c("#ffdb58", "#bcd4e6")) +
-    # scale_fill_grey()
-    # # scale_fill_viridis_d()
-  
 } 
 
 x_var_float <-
@@ -566,7 +565,7 @@ This confirms our previous insights from the **Data overview** and **Correlation
 
 ### Integer Variables
 
-Next up are boxplots for the integer variables.
+Next up are the boxplots and histograms for the integer variables.
 
 ```{r boxplot-function-int, fig.asp=0.618, echo=FALSE}
 # Credits for the code chunks goes to:
@@ -579,13 +578,6 @@ print_boxplot_int <- function(.y_var){
  
   # unquote variables using {{}}
   explore_data %>% 
-    # Filter out some extreme outliers to better display the plots
-    # filter(
-    #   feature_1 < 10,
-    #   feature_4 < 8,
-    #   feature_5 < 5,
-    #   feature_6 < 10
-    #   ) %>% 
   ggplot(
     aes(x = churn,
         y = {{y_var}},
@@ -601,8 +593,6 @@ print_boxplot_int <- function(.y_var){
     theme(legend.position = "none") +
     scale_color_manual(values = c("#ffdb58", "#bcd4e6")) +
     scale_fill_grey()
-    # scale_fill_viridis_d()
-  
 } 
 
 y_var_int <-
@@ -639,11 +629,6 @@ print_bar_int <- function(.x_var){
       title = "Histogram of every int variable",
       subtitle = "To check value range"
     ) 
-    # theme(legend.position = "none") +
-    # scale_color_manual(values = c("#ffdb58", "#bcd4e6")) +
-    # scale_fill_grey()
-    # # scale_fill_viridis_d()
-  
 } 
 
 x_var_int <-
@@ -679,37 +664,99 @@ As a conclusion, we will train our model with
 
 # Data preparation
 
+Before model training we will:  
+* select our previous identified variables that have an effect on churn  
+* create a data split with out freshly gained insights
+* create a recipe to remove outliers and perform feature scaling  
+* create a validation set
 
-## Data split
-Although the data already comes with a `r train_split`/`r new_split` split the provided test data will not be used for model training since it is unlabeled and better suited to simulate new data.   Therefore we need to create another data split to test our model with.
+## Select relevant variables
+Select the outcome and predictors for our model
+```{r select-relevant-variables}
+
+df_train_new <-
+  df_train %>% 
+  select(feature_3,
+         feature_5,
+         feature_6,
+         feature_11,
+         feature_13,
+         churn)
+
+glimpse(df_train_new)
+```
+
+Before we move on, we need to check for the minimum value of our selected variables. We can see that some values are negative. These need to be transformed into positive numbers in order to correctly apply the logarithmic transformation with `r text_spec("step_log", color = "red")` so that the distributions are more similar to a bell shape.  
+
+```{r check-min}
+# FOR LOOP SCHREIBEN
+min(train_data$feature_3)
+min(train_data$feature_5)
+min(train_data$feature_6)
+min(train_data$feature_11)
+min(train_data$feature_13)
+
+```
+
+To solve this, we will add a (different) constant to each value of the variables `r text_spec("feature 3 - 6", color = "red")` so that the minimum for these features is 1.
+This makes it possible to apply the logarithm in our recipe.
+
+```{r}
+df_train_new <-
+  HIER WEITER
+
+```
+
+
+
+## New Data split
+The data split will be done once again on the `r text_spec("df_train_new", color = "red")` in order to reflect our newest insights. Therefore we need to create another data split.
 
 ```{r data-split}
 # Seeded split to provide the same split everytime the split is made to make sure we always use the same data for model training.
 set.seed(42)
 # Split the data with a 75/25 proportion in favor for the training set
-data_split <- initial_split(df_train, # updated data
-                           prop = 3/4, 
-                           strata = churn)
+data_split <- 
+  initial_split(
+    df_train_new, # updated data
+    prop = 3/4, # 75/25 split
+    strata = churn # stratified on churn variable
+    )
 # Create the dataframes for training and testing
 train_data <- training(data_split) 
 test_data <- testing(data_split)
 ```
 
+## Validation set
+
+For the validation set a k-fold crossvalidation with a set of 5 validation folds will be used. Also, the sample is stratified. This makes sure that every characteristic of the data is properly represented in each sample.
+The validation set is used in order to check the models performance on the training dataset.
+
+```{r evaluation-split}
+# Fix random generation, also see data split
+set.seed(42)
+# generate the cross validation set
+cv_folds <-
+  vfold_cv(train_data,
+           v=5, # number of folds
+           strata = churn, # ensure the same proportion of the churn variable in every fold
+           breaks = 4)
+```
+
 
 ## Data preprocessing recipe
-To DO
-Normalisierung und feature scaling durchführen
-```{r}
-# Erstelle ein Rezept für die Modelle, wie mit den Daten umgegangen werden soll
-# Modellierung: Zuerst wird die y (Abhängige) Variable geschrieben, dann ~, dann kommen die unabhängigen Variablen (mit einem . können alle anderen Variablen genutzt werden)
-# Die Variablen werden folgendermaßen ausgewählt:
-# y Variable ist die, die betrachtet werden soll durch das Modell (welche soll ausgewertet werden, abghängig von den anderen Variablen)
-# Die restlichen Variablen werden mitgegeben, die aus unserer Sicht die Ergebnis Variable (y) am meisten Beeinflussen
 
+```{r}
+# Create a recipe for our model
 churn_rec <-
   recipe(
+    # outcome ~ predictor
     churn ~ .,
     data = train_data) %>%
+  # set the features that should be update in model training but not included in the results so we can test how they impact the performance of the model
+  update_role(feature_5,
+              feature_6,
+              feature_13) %>%
   # Imputation (fehlende Variablen werden durch Median ersetzt) für alle numerischen, außer die Ergebnisvariable (y)
   # Imputationen sollten mit Vorsicht genutzt werden, da viele
    #step_impute_median(all_numeric(), -all_outcomes()) %>%
@@ -732,10 +779,10 @@ summary(churn_rec)
 ```
 
 ```{r}
-prepped_data <- 
+prepped_data <-
   churn_rec %>% # use the recipe object
   prep() %>% # perform the recipe on training data
-  juice() # extract only the preprocessed dataframe 
+  juice() # extract only the preprocessed dataframe
 
 glimpse(prepped_data)
 ```
@@ -743,25 +790,9 @@ glimpse(prepped_data)
 
 The recipe is prepared such that the churn variable serves as the outcome which the model should predict.
 
-## Validation set
-
-For the validation set a k-fold crossvalidation with a set of 5 validation folds will be used. Also, the sample is stratified. This makes sure that every characteristic of the data is properly represented in each sample.
-The validation set is used in order to check the models performance on the training dataset.  
-
-```{r evaluation-split}
-# Fix random generation, also see data split
-set.seed(42)
-# generate the cross validation set 
-cv_folds <-
-  vfold_cv(train_data,
-           v=5, # number of folds
-           strata = churn, # ensure the same proportion of the churn variable in every fold
-           breaks = 4)
-```
-
 
 # Model
-TO DO:  
+TO DO:
 Beschreiben, wie vorgegangen wird
 Unterschiedliche Modelle ausprobieren und vergleichen.
 ## Model specification
@@ -823,6 +854,11 @@ TO DO
 siehe https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#boosted-tree-xgboost
 
 
+## Model Tuning
+
+Siehe
+https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/main/05-tidymodels-xgboost-tuning.html
+
 # Last evaluation (on test set)
 
 <!-- ```{r} -->
@@ -837,9 +873,9 @@ siehe https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#booste
 <!-- ``` -->
 
 # Additional interpretation
-We have seen that our model performs ....  
+We have seen that our model performs ....
 Since the data provided was anonymized, I used some additional research in order to give an overview of potential features that impact the churn rate.
-To DO:  
+To DO:
 Research und relevante Features beschreiben
 ## Relevant features
 
