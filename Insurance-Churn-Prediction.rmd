@@ -673,7 +673,6 @@ Before model training we will:
 ## Select relevant variables
 Select the outcome and predictors for our model
 ```{r select-relevant-variables}
-
 df_train_new <-
   df_train %>% 
   select(feature_3,
@@ -686,26 +685,37 @@ df_train_new <-
 glimpse(df_train_new)
 ```
 
-Before we move on, we need to check for the minimum value of our selected variables. We can see that some values are negative. These need to be transformed into positive numbers in order to correctly apply the logarithmic transformation with `r text_spec("step_log", color = "red")` so that the distributions are more similar to a bell shape.  
+<!-- Before we move on, we need to check for the minimum value of our selected variables. We can see that some values are negative. These need to be transformed into positive numbers in order to correctly apply the logarithmic transformation with `r text_spec("step_log", color = "red")` so that the distributions are more similar to a bell shape.   -->
 
-```{r check-min}
-# FOR LOOP SCHREIBEN
-min(train_data$feature_3)
-min(train_data$feature_5)
-min(train_data$feature_6)
-min(train_data$feature_11)
-min(train_data$feature_13)
+<!-- ```{r check-min} -->
+<!-- min(df_train_new$feature_3) -->
+<!-- min(df_train_new$feature_5) -->
+<!-- min(df_train_new$feature_6) -->
+<!-- min(df_train_new$feature_11) -->
+<!-- min(df_train_new$feature_13) -->
+<!-- ``` -->
 
-```
+<!-- To solve this, we will add a (different) constant to each value of the variables `r text_spec("feature 3 - 6", color = "red")` so that the minimum for these features is 1. -->
+<!-- This makes it possible to apply the logarithm in our recipe. -->
 
-To solve this, we will add a (different) constant to each value of the variables `r text_spec("feature 3 - 6", color = "red")` so that the minimum for these features is 1.
-This makes it possible to apply the logarithm in our recipe.
+<!-- ```{r add-constant} -->
 
-```{r}
-df_train_new <-
-  HIER WEITER
+<!-- df_train_new$feature_3 <- -->
+<!--  df_train_new$feature_3 + (1 - min(df_train_new$feature_3)) -->
 
-```
+<!-- df_train_new$feature_5 <- -->
+<!--  df_train_new$feature_5 + (1 - min(df_train_new$feature_5)) -->
+
+<!-- df_train_new$feature_6 <- -->
+<!--  df_train_new$feature_6 + (1 - min(df_train_new$feature_6)) -->
+
+<!-- min(df_train_new$feature_3) -->
+<!-- min(df_train_new$feature_5) -->
+<!-- min(df_train_new$feature_6) -->
+<!-- min(df_train_new$feature_11) -->
+<!-- min(df_train_new$feature_13) -->
+
+<!-- ``` -->
 
 
 
@@ -746,67 +756,81 @@ cv_folds <-
 
 ## Data preprocessing recipe
 
-```{r}
+First we create a recipe for our model that applies the same steps to all data that we feed into our model.
+
+```{r recipe}
 # Create a recipe for our model
 churn_rec <-
   recipe(
     # outcome ~ predictor
     churn ~ .,
     data = train_data) %>%
-  # set the features that should be update in model training but not included in the results so we can test how they impact the performance of the model
+  # set the features that should be update in model training but not be included in the results so we can test how they impact the performance of the model
   update_role(feature_5,
               feature_6,
-              feature_13) %>%
-  # Imputation (fehlende Variablen werden durch Median ersetzt) für alle numerischen, außer die Ergebnisvariable (y)
-  # Imputationen sollten mit Vorsicht genutzt werden, da viele
-   #step_impute_median(all_numeric(), -all_outcomes()) %>%
-  # Imputation (fehlende Daten werden mit Mode ersetzt) für alle nominalen Prädikatoren (kategorialen Variablen)
-   #step_impute_mode(all_nominal_predictors()) %>%
-  # Standard Score z berechnen, um die Variablen untereinander vergleichen zu können
-  # Test daten dürfen hier nicht mit normalisiert werden
-  # Bei den Test daten dürfen später niemals der Mittelwert berechnet werden, stattdessen nimmt man die Mittelwerte und Standardabweichungen des Trainingsdaten, um die Test Daten zu normalisieren
-   #step_normalize(all_numeric(), -all_outcomes()) %>%
-  # One Hot Encoding / Bildung von Dummy Variablen - Die Zeilen der kategorialen Variablen werden in Spalten umgewandelt. Diese beinhalten binäre Werte in den Zeilen (ist die Ausprägung vorliegend, oder nicht)
-   #step_dummy(all_nominal_predictors()) %>%
-  # Korrelationsprüfung, damit die Abhängigkeit der Variablen untereinander geprüft werden
+              feature_13) %>% 
+  # transform the distribution of the features to be more bell-shaped
+  # step_log(
+  #   feature_3,
+  #   feature_5,
+  #   feature_6
+  # ) %>%
+  # perform z-standardization: normalize the numeric variables to have a standard deviation of one and a mean of zero.
+  step_normalize(all_numeric(), -all_outcomes()) %>%
+  # removes numeric variables that have no variance.
+  step_zv(all_numeric(), -all_outcomes()) %>% 
+  # remove predictor variables that have large correlations with other predictor variables.
   step_corr(all_predictors(), threshold = 0.7, method = "spearman")
 
 ```
 
-```{r}
-# Anzeigen, was mit df_rec gemacht werden soll
+These variables with respective roles will be used by our recipe.
+
+```{r show-recipe}
 summary(churn_rec)
 ```
 
-```{r}
+We check how the recipe will affect our training data
+
+```{r check-preprocessing}
 prepped_data <-
   churn_rec %>% # use the recipe object
   prep() %>% # perform the recipe on training data
   juice() # extract only the preprocessed dataframe
 
+
 glimpse(prepped_data)
 ```
 
+```{r prepped-data}
+prepped_data %>% 
+  select(-churn) %>% 
+  ggscatmat(corMethod = "spearman",
+            alpha=0.2)
+```
+
+
 
 The recipe is prepared such that the churn variable serves as the outcome which the model should predict.
+<!-- We can see that `r text_spec("feature_5", color = "red")` has been removed. This happened by the step_corr() function in the recipe meaning feature_5 correlates with another feature and is not providing useful information in model training. -->
 
 
 # Model
-TO DO:
-Beschreiben, wie vorgegangen wird
-Unterschiedliche Modelle ausprobieren und vergleichen.
+
 ## Model specification
 
+KOMMENTARE SCHREIBEN
 
 ```{r specification}
 xgb_spec <-
-  # boost_tree nutzt automatisch die empirisch besten Parameter, wenn keine übergeben werden
+  # boost_tree atuomatically uses the empirically best parameters if none are specified
   boost_tree() %>%
+  # model engine
   set_engine("xgboost") %>%
-  # Kann als Klassifikation, oder Regression genutzt werden, deshalb muss das spezifiziert werden
+  # model mode
   set_mode("classification")
 
-#show model specification
+# show model specification
 xgb_spec
 
 
@@ -814,50 +838,70 @@ xgb_spec
 
 ```{r workflow}
 # workflow pipeline
-# In die Wf Pipeline wird das recipe aufgenommen (es können auch mehrere sein)
 xgb_wflow <-
- workflow() %>%
- add_recipe(churn_rec) %>%
- add_model(xgb_spec)
+  workflow() %>%
+  # specifiy our recipe
+  add_recipe(churn_rec) %>%
+  # and our model
+  add_model(xgb_spec)
+
 # show workflow
 xgb_wflow
 ```
 
+## Model Tuning
+
+Siehe
+https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/main/05-tidymodels-xgboost-tuning.html
+
+* Was bedeutet ROC
+* Wie intepretiere ich die Metriken
+
 
 ## Model execution
-```{r}
 
-# Erstellt einen Fit der Daten an das Modell und prüft es mit den Folds
+* Metriken definieren
+
+```{r execute-model}
+
+# Create fit to the model and check with validation folds
 
 xgb_res <-
   xgb_wflow %>%
   fit_resamples(
-    # fitte die Daten Anhand der Kreuzvalidierung mit den Folds, die wir vorab festgelegt haben
     resamples = cv_folds,
-    # Speichern der Ergebnisse, um die Prediciton anzuschauen
-    # Ist nicht immer notwendig
+    # Define metrics
+    metrics = metric_set(
+      recall, 
+      precision,
+      f_meas, 
+      accuracy,
+      kap,
+      roc_auc,
+      sens,
+      spec
+      ),
+    # Save predictions to 
     control = control_resamples(save_pred = TRUE)
   )
 
 ```
 
-```{r}
-# Zeige die Ergebnisse des Model fits für den Algorithmus xgb an
+```{r show-metrics}
 # rmse gibt Abstand zu Fit des Modells an
 # rsq gibt prozentualen Wert an zur Erklärung des Modells für die Datengrundlage
 xgb_res %>% collect_metrics(summarize = FALSE)
 
 ```
 
+
 ## Model evaluation
 TO DO
 siehe https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#boosted-tree-xgboost
 
 
-## Model Tuning
+* Metriken intepretieren
 
-Siehe
-https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/main/05-tidymodels-xgboost-tuning.html
 
 # Last evaluation (on test set)
 
@@ -871,6 +915,7 @@ https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/ma
 <!--   collect_metrics() -->
 
 <!-- ``` -->
+
 
 # Additional interpretation
 We have seen that our model performs ....
