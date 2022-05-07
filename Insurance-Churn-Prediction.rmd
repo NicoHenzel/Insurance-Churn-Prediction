@@ -72,7 +72,9 @@ Zusätzlich:
 
 * Bewertungskriterien abdecken aus Slack
 * Bewertungskriterien abdecken aus https://drive.google.com/file/d/1AsNHMnbEluH1ikwmp6ulBLqmmiHP3q98/view
-* Am Schluss: Styling überarbeiten und Abbildungsverzeichnis erstellen
+* Am Schluss: Styling überarbeiten und Abbildungsverzeichnis erstellen  
+ - Verweise in R Markdown nachschauen und Fette Textstellen als verweis markieren
+
 * Dashboard erstellen mit Implementierung der neuen Daten. Inhalte:  
 Customer churn distribution (pie Chart)
 INTERAKTIVE ABBILDUNG MUSS DEFINIERT WERDEN!
@@ -92,13 +94,9 @@ If the insurance case handlers could understand why a customer quits a contract 
 The output from this model could be provided as information within a dashboard, or implemented into existing applications which display contract information to the case handler. This information can then be used to make further decisions by the case handlers.
 The visualization in this project will be realized throug a dashboard.
 
-* To DO: DATA PIPELINE DARSTELLEN
-https://docs.google.com/presentation/d/1vjm5YdmOH5LrubFhHf1vlqW2O9Z2UqdWA8biN3e8K5U/edit#slide=id.g19b41f69d7_2_265
-
-
 ## Metrics
 
-The performance of the model itself will be measured by the **F1-Score**.
+The performance of the model itself will be measured by the **F1-Score**. Additionally we will check the ROC curve and the ROC-AUC value to evaluate our hyperparameter tuning. 
 
 
 The model is succesful when: 
@@ -471,6 +469,11 @@ To further inspect the relation between `r text_spec("churn", color = "red")` an
 
 ### Float Variables
 
+OFFEN:  
+* Plots mit GGarrange in einer Grafik zusammenfassen
+Siehe:
+https://www.datanovia.com/en/lessons/combine-multiple-ggplots-into-a-figure/
+
 We will start with boxplots and histograms for the float variables.
 
 ```{r boxplot-multiplot-float, fig.asp=0.618, echo=FALSE}
@@ -618,11 +621,8 @@ print_bar_int <- function(.x_var){
  
   # unquote variables using {{}}
   explore_data %>% 
-    # Filter out some extreme outliers to better display the plots
   ggplot(
-    aes(x = {{x_var}},
- 
-        )) +
+    aes(x = {{x_var}})) +
     geom_histogram(bins = 20, fill = "blue") +
     labs(
       y = "Frequency",
@@ -685,39 +685,6 @@ df_train_new <-
 glimpse(df_train_new)
 ```
 
-<!-- Before we move on, we need to check for the minimum value of our selected variables. We can see that some values are negative. These need to be transformed into positive numbers in order to correctly apply the logarithmic transformation with `r text_spec("step_log", color = "red")` so that the distributions are more similar to a bell shape.   -->
-
-<!-- ```{r check-min} -->
-<!-- min(df_train_new$feature_3) -->
-<!-- min(df_train_new$feature_5) -->
-<!-- min(df_train_new$feature_6) -->
-<!-- min(df_train_new$feature_11) -->
-<!-- min(df_train_new$feature_13) -->
-<!-- ``` -->
-
-<!-- To solve this, we will add a (different) constant to each value of the variables `r text_spec("feature 3 - 6", color = "red")` so that the minimum for these features is 1. -->
-<!-- This makes it possible to apply the logarithm in our recipe. -->
-
-<!-- ```{r add-constant} -->
-
-<!-- df_train_new$feature_3 <- -->
-<!--  df_train_new$feature_3 + (1 - min(df_train_new$feature_3)) -->
-
-<!-- df_train_new$feature_5 <- -->
-<!--  df_train_new$feature_5 + (1 - min(df_train_new$feature_5)) -->
-
-<!-- df_train_new$feature_6 <- -->
-<!--  df_train_new$feature_6 + (1 - min(df_train_new$feature_6)) -->
-
-<!-- min(df_train_new$feature_3) -->
-<!-- min(df_train_new$feature_5) -->
-<!-- min(df_train_new$feature_6) -->
-<!-- min(df_train_new$feature_11) -->
-<!-- min(df_train_new$feature_13) -->
-
-<!-- ``` -->
-
-
 
 ## New Data split
 The data split will be done once again on the `r text_spec("df_train_new", color = "red")` in order to reflect our newest insights. Therefore we need to create another data split.
@@ -738,6 +705,9 @@ test_data <- testing(data_split)
 ```
 
 ## Validation set
+
+TO DO:  
+v = 10 setzen, wenn Auswertung finalisiert wird.
 
 For the validation set a k-fold crossvalidation with a set of 5 validation folds will be used. Also, the sample is stratified. This makes sure that every characteristic of the data is properly represented in each sample.
 The validation set is used in order to check the models performance on the training dataset.
@@ -769,12 +739,6 @@ churn_rec <-
   update_role(feature_5,
               feature_6,
               feature_13) %>% 
-  # transform the distribution of the features to be more bell-shaped
-  # step_log(
-  #   feature_3,
-  #   feature_5,
-  #   feature_6
-  # ) %>%
   # perform z-standardization: normalize the numeric variables to have a standard deviation of one and a mean of zero.
   step_normalize(all_numeric(), -all_outcomes()) %>%
   # removes numeric variables that have no variance.
@@ -809,32 +773,66 @@ prepped_data %>%
             alpha=0.2)
 ```
 
-
-
 The recipe is prepared such that the churn variable serves as the outcome which the model should predict.
-<!-- We can see that `r text_spec("feature_5", color = "red")` has been removed. This happened by the step_corr() function in the recipe meaning feature_5 correlates with another feature and is not providing useful information in model training. -->
+We can see that `r text_spec("feature_5", color = "red")` has been removed. This happened by the step_corr() function in the recipe meaning feature_5 correlates with another feature and is not providing useful information in model training.
+Thus we can update our recipe and remove `r text_spec("feature_5", color = "red")`.
+
+```{r recipe-update1}
+# Create a recipe for our model
+churn_rec <-
+  recipe(
+    # outcome ~ predictor
+    churn ~ .,
+    data = train_data) %>%
+  # set the features that should be update in model training but not be included in the results so we can test how they impact the performance of the model
+  update_role(feature_6,
+              feature_13) %>% 
+  # perform z-standardization: normalize the numeric variables to have a standard deviation of one and a mean of zero.
+  step_normalize(all_numeric(), -all_outcomes()) %>%
+  # removes numeric variables that have no variance.
+  step_zv(all_numeric(), -all_outcomes()) %>% 
+  # remove predictor variables that have large correlations with other predictor variables.
+  step_corr(all_predictors(), threshold = 0.7, method = "spearman")
+
+```
 
 
 # Model
 
 ## Model specification
 
-KOMMENTARE SCHREIBEN
+We will set up the model with the needed specification.
+Normally the function `r text_spec("boost_tree", color = "red")` automatically uses the empirically best parameters if none are specified. In order to find the best parameters for our model, we will specify them. 
+
+We also use the xgboost engine with the classification mode.
 
 ```{r specification}
-xgb_spec <-
-  # boost_tree atuomatically uses the empirically best parameters if none are specified
-  boost_tree() %>%
+
+xgb_spec_tuning <-
+  boost_tree(
+      mtry = tune(), # number (or proportion) of predictors
+      trees = 10, # number of decision trees. For testing, we will leave it at a lower value
+      min_n = tune(), # minimum number of data points in a node required to split
+      tree_depth = tune(), # maximum splits (depth of decision trees)
+      learn_rate = tune(), # adaption rate over iterations
+      loss_reduction = tune(), # reduction in loss required to split
+      sample_size = tune(), # number (or proportion) of data exposed to fitting
+  ) %>%
   # model engine
   set_engine("xgboost") %>%
   # model mode
   set_mode("classification")
 
 # show model specification
-xgb_spec
+sgb_spec
+xgb_spec_tuning
 
 
 ```
+
+### Workflow
+
+Next we create a workflow object that will combine the recipe `r text_spec("churn_rec", color = "red") with our model building in **Model execution**.
 
 ```{r workflow}
 # workflow pipeline
@@ -849,55 +847,200 @@ xgb_wflow <-
 xgb_wflow
 ```
 
-## Model Tuning
+```{r show-metrics}
+xgb_res %>% collect_metrics(summarize = FALSE)
 
-Siehe
+```
+
+
+### Grid search
+
+TO DO:  
+size auf 100 setzen, wenn Auswertung finalisiert wird!
+
+In order to tune the parameters we first set up possible values for them. For efficiency reasons we use grid_latin_hypercube().  
+For more information see:  
 https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/main/05-tidymodels-xgboost-tuning.html
 
-* Was bedeutet ROC
-* Wie intepretiere ich die Metriken
+```{r grid-search}
+
+
+xgb_grid <- grid_latin_hypercube(
+  tree_depth(),
+  min_n(),
+  loss_reduction(),
+  sample_size = sample_prop(), # needs to be a proportion
+  finalize(mtry(), train_data), # different approach since mtry depends on number of predictors in data
+  learn_rate(),
+  size = 20
+)
+
+xgb_grid
+```
+
+
+### Hyperparameter tuning
+
+The `r text_spec("tune_grid", color = "red")` function computes the performance metrics for us, which we defined earlier.
+
+```{r tuning}
+# Seeded to make sure we can reproduce the tuning
+set.seed(42) 
+
+xgb_res <- tune_grid(
+  xgb_wflow,
+  resamples = cv_folds,
+  grid = xgb_grid,
+  # save the predictions to visualize the data 
+  control = control_grid(save_pred = TRUE) 
+)
+
+xgb_res
+```
+
+### Explore results
+First we take a look at our metrics
+
+```{r collect-metrics }
+
+collect_metrics(xgb_res)
+
+```
+
+Then we visualize the ROC-AUC value for every hyperparamater which gives us a first impression of how well specific values for our hyperparamaters perform. 
+
+```{r roc-auc}
+
+# Credits for the code chunk goes to:
+# https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/main/05-tidymodels-xgboost-tuning.html
+
+# Pivot xgb_res to longer data format while only filtering for roc_auc
+xgb_res_auc <-
+  xgb_res %>%
+  collect_metrics() %>%
+  filter(.metric == "roc_auc") %>%
+  select(mean, mtry:sample_size) %>% 
+  pivot_longer(mtry:sample_size,
+               values_to = "value",
+               names_to = "parameter"
+  )
+
+# show roc-auc side by side for every hyperparameter
+xgb_res_auc %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(alpha = 0.8, show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  scale_color_viridis_d()+
+  labs(x = NULL,
+       y = "AUC",
+       title = "AUC values after tuning",
+       subtitle = "For each hyperparameter")
+
+```
+
+### Finding the best model 
+
+```{r show-roc-f1}
+show_best(xgb_res, 
+          "roc_auc")
+```
+
+```{r select-best-roc-f1}
+best_auc <- 
+  select_best(
+    xgb_res, 
+    "roc_auc" 
+    )
+best_auc
+```
+
+### Adding best parameters to Workflow
+
+```{r add-to-wf}
+
+final_xgb_Wf <- finalize_workflow(
+  xgb_wflow,
+  best_auc
+)
+
+final_xgb_Wf
+
+```
 
 
 ## Model execution
-
-* Metriken definieren
 
 ```{r execute-model}
 
 # Create fit to the model and check with validation folds
 
 xgb_res <-
-  xgb_wflow %>%
+  final_xgb_Wf %>%
   fit_resamples(
     resamples = cv_folds,
     # Define metrics
     metrics = metric_set(
-      recall, 
-      precision,
       f_meas, 
       accuracy,
-      kap,
       roc_auc,
-      sens,
-      spec
+      spec,
+      sensitivity,
       ),
-    # Save predictions to 
+    # Save predictions 
     control = control_resamples(save_pred = TRUE)
   )
 
 ```
 
-```{r show-metrics}
-# rmse gibt Abstand zu Fit des Modells an
-# rsq gibt prozentualen Wert an zur Erklärung des Modells für die Datengrundlage
-xgb_res %>% collect_metrics(summarize = FALSE)
-
-```
 
 
 ## Model evaluation
 TO DO
 siehe https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#boosted-tree-xgboost
+
+Now we can use our validation set (cv_folds) to estimate the performance of our models using the fit_resamples() function to fit the models on each of the folds and store the results.
+
+Note that fit_resamples() will fit our model to each resample and evaluate on the heldout set from each resample. The function is usually only used for computing performance metrics across some set of resamples to evaluate our models (like accuracy) - the models are not even stored. However, in our example we save the predictions in order to visualize the model fit and residuals with control_resamples(save_pred = TRUE).
+
+Finally, we collect the performance metrics with collect_metrics() and pick the model that does best on the validation set.
+
+First we take a look at the performance over all folds
+
+```{r show-metrics}
+xgb_res %>% collect_metrics(summarize = TRUE)
+
+```
+
+We then collect our predictions. This will be needed to create the confusion matrix and ROC curve
+
+```{r collect-predictions}
+xgb_pred <- 
+  xgb_res %>%
+  collect_predictions()
+```
+
+Next we create the confusion matrix and plot it
+TO DO:
+Achsen anpassen und titel
+```{r confusion-matrix}
+xgb_pred %>% 
+  conf_mat(churn, .pred_class) %>% 
+  autoplot(type = "heatmap")
+```
+
+We can see that our model has a high rate of true positives.
+The true negative rate on the other hand is not that great.
+
+
+In order to see the ROC we also plot it
+
+```{r}
+xgb_pred %>% 
+  group_by(id) %>% # id contains our folds
+  roc_curve(churn, .pred_0) %>% 
+  autoplot()
+```
+
 
 
 * Metriken intepretieren
