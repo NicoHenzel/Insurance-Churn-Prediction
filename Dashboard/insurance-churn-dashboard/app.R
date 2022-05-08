@@ -13,10 +13,12 @@
 
 library(shiny) 
 library(shinydashboard)
+# library(tidyverse)
 
-  
+# Set name of dashboard and header elements  
 header <- dashboardHeader(
     title = "Insurance churn",
+    # Specify menu items on the right
     dropdownMenu(
       type = "notifications",
       notificationItem(
@@ -34,19 +36,22 @@ header <- dashboardHeader(
         )
       )
     )
-
+# Set different "pages" of dashboard
 sidebar <-  dashboardSidebar(
     sidebarMenu(
+      # needs a counterpart in body
       menuItem(
         "Dashboard",
         tabName = "dashboard",
         icon = icon("dashboard")
         ),
+      # needs a counterpart in body
       menuItem(
         "Charts",
         tabName = "charts",
         icon = icon("chart-bar")
         ),
+      # no counterpart needed
       menuItem(
         "Source code", 
         icon = icon("file-code-o"), 
@@ -54,6 +59,7 @@ sidebar <-  dashboardSidebar(
     )
   )
 
+# Set content of dashboard pages
 body <- dashboardBody(
     tabItems(
       # First tab content
@@ -61,27 +67,27 @@ body <- dashboardBody(
         tabName = "dashboard",
         h2("Overview of contract churn data"),
         fluidRow(
-        box(
-          title = tagList("Table of contract data", shiny::icon("file")),
-          color = "green",
-          plotOutput("plot1", height = 250)
+          box(
+            title = "Controls",
+            status = "primary",
+            width = 8,
+            sliderInput(
+              "slider",
+              "Number of observations:", 1, 100, 50)
           ),
-        box(
-          title = "Controls",
-          sliderInput(
-            "slider",
-            "Number of observations:", 1, 100, 50)
-          )
-        ),
-        fluidRow(
           # Dynamic valueBoxes
-          valueBoxOutput("clientBox")
-        ),
-        fluidRow(
+          valueBoxOutput("clientBox"),
           # Clicking this will increment the progress amount
           box(width = 4, actionButton("count", "Increment progress"))
+        ),
+        fluidRow(
+          box(
+            title = tagList( shiny::icon("file"),"Table of contract data"),
+            status = "primary",
+            width = 12,
+            plotOutput("plot1", height = 250)
+          )
         )
-        
       ),
       # Second tab content
       tabItem(
@@ -89,22 +95,23 @@ body <- dashboardBody(
         h2("Charts of contract data"),
         fluidRow(
           box(
-            title = tagList("Total churn distribution", shiny::icon("chart-pie")),
-            color = "blue",
+            title = tagList( shiny::icon("chart-pie"),"Total churn distribution"),
+            status = "primary",
+            width = 12,
             plotOutput("plot2", height = 250)
           ),
           box(
-            title = tagList("Most important features", shiny::icon("exclamation")),
-            color = "blue",
+            title = tagList(shiny::icon("exclamation"),"Most important features"),
+            status = "primary",
+            width = 12,
             plotOutput("plot3", height = 250)
           ),
           tabBox(
             # Title can include an icon
             title = tagList( "Bar charts", shiny::icon("chart-bar")),
-            tabPanel("Feature 1",
-                     "Tab content 1"
-            ),
-            tabPanel("Feature 2", "Tab content 2")
+            width = 12,
+            tabPanel("Feature 1","Tab content 1"),
+            tabPanel("Feature 2","Tab content 2")
           )
         )
       )
@@ -112,12 +119,24 @@ body <- dashboardBody(
   )
 
 
-ui <- dashboardPage(header, sidebar, body)
-
+ui <- 
+  dashboardPage(
+    skin = "blue",
+    header, 
+    sidebar, 
+    body
+    )
+# set the dynamic input
 server <- function(input, output) {
   set.seed(42)
+  # use the data we obtained from our ML model
   histdata <- rnorm(500)
-  
+  # LINK_new <- 
+  #   "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Test.csv"
+  # new_data <- 
+  #   read_csv(LINK_new)
+  # 
+  # 
   output$plot1 <- renderPlot({
     data <- histdata[seq_len(input$slider)]
     hist(data)
@@ -126,7 +145,7 @@ server <- function(input, output) {
   output$clientBox <- renderValueBox({
       valueBox(
         paste0(42 + input$count), "Contaced clients", icon = icon("user"),
-        color = "purple"
+        color = "blue"
       )
     })
 }
