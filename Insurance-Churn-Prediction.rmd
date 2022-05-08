@@ -54,6 +54,8 @@ library(ggplot2)
 library(tibble)
 library(purrr)
 library(Hmisc)
+library(ranger)
+library(kknn)
 ```
 
 <!-- Theme setting -->
@@ -85,8 +87,8 @@ Tabelle mit Zeilen, die als Churn predicted wurden
 ## Use case
 
 The goal for this project is to train a classification algorithm with anonymized insurance contract data in order to predict the churn of insurance customers (whether the insurance company will lose a customer or not).
-Since the outcome is categorial (customers stays or leaves) and the churn in the available training is labeled, we face a supervised learning problem that can be solved with a classification model.  
-In order to measure the performance, the F1-Score will serve as a metric.  
+Since the outcome is categorial (customer stays or leaves) and the churn in the available training data is labeled, we face a supervised learning problem that can be solved with a classification model.  
+In order to measure the performance of different classfication models, the F1-Score will serve as a metric.  
 
 A potential use case, where these insights could be applied, is:
 Any insurance company wants to improve (or at least not decrease) their customer loyalty.
@@ -96,10 +98,10 @@ The visualization in this project will be realized throug a dashboard.
 
 ## Metrics
 
-The performance of the model itself will be measured by the **F1-Score**. Additionally we will check the ROC curve and the ROC-AUC value to evaluate our hyperparameter tuning. 
+The performance of the different models will be measured by the specificity. This is the most important metric since we want to make sure that our model predicts more True negatives (= Churn) than False positives in order to give the case handlers the best overview of possible churn candidates.
+Additionally we will check some other performance metrics like recall, precision, sensitivity, F1-Score and the ROC-AUC value to evaluate our models and hyperparameter tuning. 
 
-
-The model is succesful when: 
+The model is successful when: 
 
 * Visualized recommendations allow case handlers to identify potential churn and get in contact with customers.
 
@@ -679,6 +681,7 @@ df_train_new <-
          feature_5,
          feature_6,
          feature_11,
+         feature_12,
          feature_13,
          churn)
 
@@ -736,9 +739,8 @@ churn_rec <-
     churn ~ .,
     data = train_data) %>%
   # set the features that should be update in model training but not be included in the results so we can test how they impact the performance of the model
-  update_role(feature_5,
-              feature_6,
-              feature_13) %>% 
+  # update_role(feature_5,
+  #             feature_6,) %>%
   # perform z-standardization: normalize the numeric variables to have a standard deviation of one and a mean of zero.
   step_normalize(all_numeric(), -all_outcomes()) %>%
   # removes numeric variables that have no variance.
@@ -775,26 +777,6 @@ prepped_data %>%
 
 The recipe is prepared such that the churn variable serves as the outcome which the model should predict.
 We can see that `r text_spec("feature_5", color = "red")` has been removed. This happened by the step_corr() function in the recipe meaning feature_5 correlates with another feature and is not providing useful information in model training.
-Thus we can update our recipe and remove `r text_spec("feature_5", color = "red")`.
-
-```{r recipe-update1}
-# Create a recipe for our model
-churn_rec <-
-  recipe(
-    # outcome ~ predictor
-    churn ~ .,
-    data = train_data) %>%
-  # set the features that should be update in model training but not be included in the results so we can test how they impact the performance of the model
-  update_role(feature_6,
-              feature_13) %>% 
-  # perform z-standardization: normalize the numeric variables to have a standard deviation of one and a mean of zero.
-  step_normalize(all_numeric(), -all_outcomes()) %>%
-  # removes numeric variables that have no variance.
-  step_zv(all_numeric(), -all_outcomes()) %>% 
-  # remove predictor variables that have large correlations with other predictor variables.
-  step_corr(all_predictors(), threshold = 0.7, method = "spearman")
-
-```
 
 
 # Model
@@ -808,7 +790,7 @@ We also use the xgboost engine with the classification mode.
 
 ```{r specification}
 
-xgb_spec_tuning <-
+xgb_spec <-
   boost_tree(
       mtry = tune(), # number (or proportion) of predictors
       trees = 10, # number of decision trees. For testing, we will leave it at a lower value
@@ -824,8 +806,7 @@ xgb_spec_tuning <-
   set_mode("classification")
 
 # show model specification
-sgb_spec
-xgb_spec_tuning
+xgb_spec
 
 
 ```
@@ -845,11 +826,6 @@ xgb_wflow <-
 
 # show workflow
 xgb_wflow
-```
-
-```{r show-metrics}
-xgb_res %>% collect_metrics(summarize = FALSE)
-
 ```
 
 
@@ -940,6 +916,8 @@ xgb_res_auc %>%
 
 ### Finding the best model 
 
+In order to train our model with the beövst hyperparameters, we evaluate them based on the ROC-AUC value depicted in the precious graph.
+
 ```{r show-roc-f1}
 show_best(xgb_res, 
           "roc_auc")
@@ -954,7 +932,12 @@ best_auc <-
 best_auc
 ```
 
+This set of values will be chosen for our hyperparameters as it overall provides the best AUC values.
+
+
 ### Adding best parameters to Workflow
+
+We create a final workflow which uses our best set of tuned hyperparameters.
 
 ```{r add-to-wf}
 
@@ -970,6 +953,10 @@ final_xgb_Wf
 
 ## Model execution
 
+Finally we can execute our model and fit it to our training data with the finalized workflow.  
+Our validation set `r text_spec("cv_folds", color = "red")` is used to estimate the performance for specified metrics and computed by the `r text_spec("fit_resamples", color = "red")` function. In particular this is done by fitting the model to each resample while holding out a portion of the dataset from each resample on which the model is then evaluated.  
+We save the predictions made so we can evaluate the performance metrics, especially the f1 score.
+
 ```{r execute-model}
 
 # Create fit to the model and check with validation folds
@@ -983,8 +970,244 @@ xgb_res <-
       f_meas, 
       accuracy,
       roc_auc,
+      recall,
+      precision,
       spec,
-      sensitivity,
+      sens,
+      ),
+    # Save predictions 
+    control = control_resamples(save_pred = TRUE)
+  )
+
+```
+
+Let us execute a xgboost model without hyperparamaeter tuning in order to compare both.
+
+```{r spec-no-tune}
+xgb_spec_no_tune <-
+  boost_tree(  ) %>%
+  # model engine
+  set_engine("xgboost") %>%
+  # model mode
+  set_mode("classification")
+
+```
+
+
+```{r workflow-no-tune}
+# workflow pipeline
+xgb_wflow_no_tune <-
+  workflow() %>%
+  # specifiy our recipe
+  add_recipe(churn_rec) %>%
+  # and our model
+  add_model(xgb_spec_no_tune)
+
+```
+
+
+```{r execute-model-no-tune}
+
+# Create fit to the model and check with validation folds
+
+xgb_res_no_tune <-
+  xgb_wflow_no_tune %>%
+  fit_resamples(
+    resamples = cv_folds,
+    # Define metrics
+    metrics = metric_set(
+      f_meas, 
+      accuracy,
+      roc_auc,
+      recall,
+      precision,
+      spec,
+      sens,
+      ),
+    # Save predictions 
+    control = control_resamples(save_pred = TRUE)
+  )
+
+```
+
+## First model evaluation
+
+To evaluate our models, we collect the performance metrics with `r text_spec("collect_metrics()", color = "red")`.  
+
+First we take a look at the performance over all folds
+
+```{r show-metrics}
+xgb_res %>% 
+  collect_metrics(summarize = TRUE)
+
+xgb_res_no_tune %>% 
+  collect_metrics(summarize = TRUE)
+
+```
+
+This shows that the tuning did not have a great effect on our models performance since the performance metrics are nearly the same.  
+The only significant change is for the specificity although it is still not great at 32 %
+
+We then collect our predictions. This will be needed to create the confusion matrix and ROC curve
+
+```{r collect-predictions}
+xgb_pred <- 
+  xgb_res %>% 
+  collect_predictions()
+
+xgb_pred_no_tune <- 
+  xgb_res_no_tune %>%
+  collect_predictions()
+```
+
+Next we create the confusion matrix and plot it.  
+TO DO:
+Achsen anpassen und titel
+```{r confusion-matrix}
+xgb_pred %>% 
+  conf_mat(churn, .pred_class) %>% 
+  autoplot(type = "heatmap")
+
+xgb_pred_no_tune %>% 
+  conf_mat(churn, .pred_class) %>% 
+  autoplot(type = "heatmap")
+```
+
+Here we can see again that the hyperparameter tuning had only a very slight effect:  
+* The tuned model predicted 21796 True positives (no Churn) and 954 True negatives (Churn).
+* The model with the standard settings for hyperparamaters predicted 21793 True positives (no Churn) and 922 True negatives (Churn).
+Overall our model has a high rate of true positives but (as we have seen already) a low specificity - rate of true negatives.  
+
+
+We also visualize the ROC:
+
+```{r roc-curve}
+xgb_pred %>% 
+  group_by(id) %>% # id contains our folds
+  roc_curve(churn, .pred_0) %>% 
+  autoplot()
+
+xgb_pred %>% 
+  group_by(id) %>% # id contains our folds
+  roc_curve(churn, .pred_1) %>% 
+  autoplot()
+```
+
+Our model is very good at predicting that a customer won't churn (first ROC-curve) but at the same time worse than random guessing (would be a ROC-curve at 45 degrees) if a customer will churn (second ROC-curve).
+
+For our use case we need to make sure that the model has a better specificity since we want to show the cases that are likely to churn. 
+
+In order to find a better model we will train and evaluate some other classifying algorithms and compare all models using the f1 score as a performance measure. 
+
+# Additional model training
+
+We will use the following algorithms
+
+* Logistic regression
+* Random forest
+* K-nearest neighbor
+
+We repeat all our steps from above to create specifications, workflows and train the models.
+
+```{r specifications}
+# Logistic regression
+log_spec <- 
+  # will use best empirical hyperparamters
+  logistic_reg() %>% 
+  set_engine(engine = "glm") %>%
+  set_mode("classification") 
+
+# Random forest
+rf_spec <- 
+  # will use best empirical hyperparamters
+  rand_forest() %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+# K-nearest neighbor
+knn_spec <- 
+  # will use best empirical hyperparamters
+  nearest_neighbor(neighbors = 4) %>% # can be adjusted
+  set_engine("kknn") %>% 
+  set_mode("classification") 
+
+```
+
+```{r workflows}
+# Logistic regression
+log_wflow <- 
+ workflow() %>% 
+ add_recipe(churn_rec) %>%  
+ add_model(log_spec)
+
+# Random forest
+rf_wflow <-
+ workflow() %>%
+ add_recipe(churn_rec) %>% 
+ add_model(rf_spec) 
+
+# K-nearest neighbor
+knn_wflow <-
+ workflow() %>%
+ add_recipe(churn_rec) %>% 
+ add_model(knn_spec)
+
+```
+
+```{r fit-models}
+# Logistic regression
+log_res <-
+  log_wflow %>%
+  fit_resamples(
+    resamples = cv_folds,
+    # Define metrics
+    metrics = metric_set(
+      f_meas, 
+      accuracy,
+      roc_auc,
+      recall,
+      precision,
+      spec,
+      sens,
+      ),
+    # Save predictions 
+    control = control_resamples(save_pred = TRUE)
+  )
+
+
+# Random forest
+rf_res <-
+  rf_wflow %>%
+  fit_resamples(
+    resamples = cv_folds,
+    # Define metrics
+    metrics = metric_set(
+      f_meas, 
+      accuracy,
+      roc_auc,
+      recall,
+      precision,
+      spec,
+      sens,
+      ),
+    # Save predictions 
+    control = control_resamples(save_pred = TRUE)
+  )
+
+# K-nearest neighbor
+knn_res <-
+  knn_wflow %>%
+  fit_resamples(
+    resamples = cv_folds,
+    # Define metrics
+    metrics = metric_set(
+      f_meas, 
+      accuracy,
+      roc_auc,
+      recall,
+      precision,
+      spec,
+      sens,
       ),
     # Save predictions 
     control = control_resamples(save_pred = TRUE)
@@ -993,58 +1216,56 @@ xgb_res <-
 ```
 
 
+## Model comparison
 
-## Model evaluation
-TO DO
-siehe https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#boosted-tree-xgboost
+We compare the models by first looking at the different metrics and the confusion matrices.
 
-Now we can use our validation set (cv_folds) to estimate the performance of our models using the fit_resamples() function to fit the models on each of the folds and store the results.
+```{r collect-metrics}
+log_res %>%  collect_metrics(summarize = TRUE)
+rf_res %>%  collect_metrics(summarize = TRUE)
+knn_res %>%  collect_metrics(summarize = TRUE)
 
-Note that fit_resamples() will fit our model to each resample and evaluate on the heldout set from each resample. The function is usually only used for computing performance metrics across some set of resamples to evaluate our models (like accuracy) - the models are not even stored. However, in our example we save the predictions in order to visualize the model fit and residuals with control_resamples(save_pred = TRUE).
-
-Finally, we collect the performance metrics with collect_metrics() and pick the model that does best on the validation set.
-
-First we take a look at the performance over all folds
-
-```{r show-metrics}
-xgb_res %>% collect_metrics(summarize = TRUE)
 
 ```
 
-We then collect our predictions. This will be needed to create the confusion matrix and ROC curve
+```{r confusion-matrices}
 
-```{r collect-predictions}
-xgb_pred <- 
-  xgb_res %>%
+log_pred <-
+  log_res %>% 
   collect_predictions()
-```
 
-Next we create the confusion matrix and plot it
-TO DO:
-Achsen anpassen und titel
-```{r confusion-matrix}
-xgb_pred %>% 
+rf_pred <-
+  rf_res %>% 
+  collect_predictions()
+
+knn_pred <-
+  knn_res %>% 
+  collect_predictions()
+
+
+log_pred %>% 
+  conf_mat(churn, .pred_class) %>% 
+  autoplot()
+
+rf_pred %>% 
   conf_mat(churn, .pred_class) %>% 
   autoplot(type = "heatmap")
+
+knn_pred %>% 
+  conf_mat(churn, .pred_class) %>% 
+  autoplot(type = "heatmap")
+
+
 ```
 
-We can see that our model has a high rate of true positives.
-The true negative rate on the other hand is not that great.
+We can see that our hyperparameter tuned xgboost classification algorithm performed the best out of all models so far, considering specificity and F1-Score.
 
+We will use that model and fine tune it in order to gain a better specificity and thus a higher prediction for churning.
 
-In order to see the ROC we also plot it
+# Model fine tuning
 
-```{r}
-xgb_pred %>% 
-  group_by(id) %>% # id contains our folds
-  roc_curve(churn, .pred_0) %>% 
-  autoplot()
-```
-
-
-
-* Metriken intepretieren
-
+TO DO 
+Specificity erhöhen, damit Model bessere Aussage treffen kann
 
 # Last evaluation (on test set)
 
