@@ -58,7 +58,7 @@ library(ranger)
 library(kknn)
 ```
 
-<!-- Theme setting -->
+<!-- Plot theme setting -->
 ```{r theme-setting, include=FALSE}
 theme_set(
   theme_light() + theme()
@@ -98,7 +98,7 @@ The visualization in this project will be realized throug a dashboard.
 
 ## Metrics
 
-The performance of the different models will be measured by the specificity. This is the most important metric since we want to make sure that our model predicts more True negatives (= Churn) than False positives in order to give the case handlers the best overview of possible churn candidates.
+The performance of the different models will be measured by the specificity and ROC-curve. These are the most important metrics since we want to make sure that our model predicts more True negatives (= Churn) than False positives in order to give the case handlers the best overview of possible churn candidates.
 Additionally we will check some other performance metrics like recall, precision, sensitivity, F1-Score and the ROC-AUC value to evaluate our models and hyperparameter tuning. 
 
 The model is successful when: 
@@ -738,9 +738,6 @@ churn_rec <-
     # outcome ~ predictor
     churn ~ .,
     data = train_data) %>%
-  # set the features that should be update in model training but not be included in the results so we can test how they impact the performance of the model
-  # update_role(feature_5,
-  #             feature_6,) %>%
   # perform z-standardization: normalize the numeric variables to have a standard deviation of one and a mean of zero.
   step_normalize(all_numeric(), -all_outcomes()) %>%
   # removes numeric variables that have no variance.
@@ -779,27 +776,18 @@ The recipe is prepared such that the churn variable serves as the outcome which 
 We can see that `r text_spec("feature_5", color = "red")` has been removed. This happened by the step_corr() function in the recipe meaning feature_5 correlates with another feature and is not providing useful information in model training.
 
 
-# Model
+# Model - XGBoost
 
 ## Model specification
 
-We will set up the model with the needed specification.
-Normally the function `r text_spec("boost_tree", color = "red")` automatically uses the empirically best parameters if none are specified. In order to find the best parameters for our model, we will specify them. 
+We will set up the models with the needed specification.
+The function `r text_spec("boost_tree", color = "red")` automatically uses the empirically best parameters if none are specified. 
 
 We also use the xgboost engine with the classification mode.
 
 ```{r specification}
-
 xgb_spec <-
-  boost_tree(
-      mtry = tune(), # number (or proportion) of predictors
-      trees = 10, # number of decision trees. For testing, we will leave it at a lower value
-      min_n = tune(), # minimum number of data points in a node required to split
-      tree_depth = tune(), # maximum splits (depth of decision trees)
-      learn_rate = tune(), # adaption rate over iterations
-      loss_reduction = tune(), # reduction in loss required to split
-      sample_size = tune(), # number (or proportion) of data exposed to fitting
-  ) %>%
+  boost_tree() %>%
   # model engine
   set_engine("xgboost") %>%
   # model mode
@@ -807,13 +795,11 @@ xgb_spec <-
 
 # show model specification
 xgb_spec
-
-
 ```
 
-### Workflow
+## Workflow
 
-Next we create a workflow object that will combine the recipe `r text_spec("churn_rec", color = "red") with our model building in **Model execution**.
+Next we create a workflow object. This allows us to combine the recipe `r text_spec("churn_rec", color = "red") with our model in **Model execution**.
 
 ```{r workflow}
 # workflow pipeline
@@ -828,129 +814,6 @@ xgb_wflow <-
 xgb_wflow
 ```
 
-
-### Grid search
-
-TO DO:  
-size auf 100 setzen, wenn Auswertung finalisiert wird!
-
-In order to tune the parameters we first set up possible values for them. For efficiency reasons we use grid_latin_hypercube().  
-For more information see:  
-https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/main/05-tidymodels-xgboost-tuning.html
-
-```{r grid-search}
-
-
-xgb_grid <- grid_latin_hypercube(
-  tree_depth(),
-  min_n(),
-  loss_reduction(),
-  sample_size = sample_prop(), # needs to be a proportion
-  finalize(mtry(), train_data), # different approach since mtry depends on number of predictors in data
-  learn_rate(),
-  size = 20
-)
-
-xgb_grid
-```
-
-
-### Hyperparameter tuning
-
-The `r text_spec("tune_grid", color = "red")` function computes the performance metrics for us, which we defined earlier.
-
-```{r tuning}
-# Seeded to make sure we can reproduce the tuning
-set.seed(42) 
-
-xgb_res <- tune_grid(
-  xgb_wflow,
-  resamples = cv_folds,
-  grid = xgb_grid,
-  # save the predictions to visualize the data 
-  control = control_grid(save_pred = TRUE) 
-)
-
-xgb_res
-```
-
-### Explore results
-First we take a look at our metrics
-
-```{r collect-metrics }
-
-collect_metrics(xgb_res)
-
-```
-
-Then we visualize the ROC-AUC value for every hyperparamater which gives us a first impression of how well specific values for our hyperparamaters perform. 
-
-```{r roc-auc}
-
-# Credits for the code chunk goes to:
-# https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/main/05-tidymodels-xgboost-tuning.html
-
-# Pivot xgb_res to longer data format while only filtering for roc_auc
-xgb_res_auc <-
-  xgb_res %>%
-  collect_metrics() %>%
-  filter(.metric == "roc_auc") %>%
-  select(mean, mtry:sample_size) %>% 
-  pivot_longer(mtry:sample_size,
-               values_to = "value",
-               names_to = "parameter"
-  )
-
-# show roc-auc side by side for every hyperparameter
-xgb_res_auc %>%
-  ggplot(aes(value, mean, color = parameter)) +
-  geom_point(alpha = 0.8, show.legend = FALSE) +
-  facet_wrap(~parameter, scales = "free_x") +
-  scale_color_viridis_d()+
-  labs(x = NULL,
-       y = "AUC",
-       title = "AUC values after tuning",
-       subtitle = "For each hyperparameter")
-
-```
-
-### Finding the best model 
-
-In order to train our model with the beövst hyperparameters, we evaluate them based on the ROC-AUC value depicted in the precious graph.
-
-```{r show-roc-f1}
-show_best(xgb_res, 
-          "roc_auc")
-```
-
-```{r select-best-roc-f1}
-best_auc <- 
-  select_best(
-    xgb_res, 
-    "roc_auc" 
-    )
-best_auc
-```
-
-This set of values will be chosen for our hyperparameters as it overall provides the best AUC values.
-
-
-### Adding best parameters to Workflow
-
-We create a final workflow which uses our best set of tuned hyperparameters.
-
-```{r add-to-wf}
-
-final_xgb_Wf <- finalize_workflow(
-  xgb_wflow,
-  best_auc
-)
-
-final_xgb_Wf
-
-```
-
-
 ## Model execution
 
 Finally we can execute our model and fit it to our training data with the finalized workflow.  
@@ -962,7 +825,7 @@ We save the predictions made so we can evaluate the performance metrics, especia
 # Create fit to the model and check with validation folds
 
 xgb_res <-
-  final_xgb_Wf %>%
+  xgb_wflow %>%
   fit_resamples(
     resamples = cv_folds,
     # Define metrics
@@ -980,59 +843,9 @@ xgb_res <-
   )
 
 ```
+## Model evaluation
 
-Let us execute a xgboost model without hyperparamaeter tuning in order to compare both.
-
-```{r spec-no-tune}
-xgb_spec_no_tune <-
-  boost_tree(  ) %>%
-  # model engine
-  set_engine("xgboost") %>%
-  # model mode
-  set_mode("classification")
-
-```
-
-
-```{r workflow-no-tune}
-# workflow pipeline
-xgb_wflow_no_tune <-
-  workflow() %>%
-  # specifiy our recipe
-  add_recipe(churn_rec) %>%
-  # and our model
-  add_model(xgb_spec_no_tune)
-
-```
-
-
-```{r execute-model-no-tune}
-
-# Create fit to the model and check with validation folds
-
-xgb_res_no_tune <-
-  xgb_wflow_no_tune %>%
-  fit_resamples(
-    resamples = cv_folds,
-    # Define metrics
-    metrics = metric_set(
-      f_meas, 
-      accuracy,
-      roc_auc,
-      recall,
-      precision,
-      spec,
-      sens,
-      ),
-    # Save predictions 
-    control = control_resamples(save_pred = TRUE)
-  )
-
-```
-
-## First model evaluation
-
-To evaluate our models, we collect the performance metrics with `r text_spec("collect_metrics()", color = "red")`.  
+To evaluate our model, we collect the performance metrics with `r text_spec("collect_metrics()", color = "red")`.  
 
 First we take a look at the performance over all folds
 
@@ -1040,23 +853,15 @@ First we take a look at the performance over all folds
 xgb_res %>% 
   collect_metrics(summarize = TRUE)
 
-xgb_res_no_tune %>% 
-  collect_metrics(summarize = TRUE)
-
 ```
 
-This shows that the tuning did not have a great effect on our models performance since the performance metrics are nearly the same.  
-The only significant change is for the specificity although it is still not great at 32 %
+Our models performance overall seems to be good. The only problem is that the specificity is very poor.
 
 We then collect our predictions. This will be needed to create the confusion matrix and ROC curve
 
 ```{r collect-predictions}
 xgb_pred <- 
   xgb_res %>% 
-  collect_predictions()
-
-xgb_pred_no_tune <- 
-  xgb_res_no_tune %>%
   collect_predictions()
 ```
 
@@ -1068,16 +873,9 @@ xgb_pred %>%
   conf_mat(churn, .pred_class) %>% 
   autoplot(type = "heatmap")
 
-xgb_pred_no_tune %>% 
-  conf_mat(churn, .pred_class) %>% 
-  autoplot(type = "heatmap")
 ```
 
-Here we can see again that the hyperparameter tuning had only a very slight effect:  
-* The tuned model predicted 21796 True positives (no Churn) and 954 True negatives (Churn).
-* The model with the standard settings for hyperparamaters predicted 21793 True positives (no Churn) and 922 True negatives (Churn).
 Overall our model has a high rate of true positives but (as we have seen already) a low specificity - rate of true negatives.  
-
 
 We also visualize the ROC:
 
@@ -1220,70 +1018,337 @@ knn_res <-
 
 We compare the models by first looking at the different metrics and the confusion matrices.
 
-```{r collect-metrics}
+
+* Logistic regression
+
+```{r log-metrics}
 log_res %>%  collect_metrics(summarize = TRUE)
-rf_res %>%  collect_metrics(summarize = TRUE)
-knn_res %>%  collect_metrics(summarize = TRUE)
-
-
-```
-
-```{r confusion-matrices}
 
 log_pred <-
   log_res %>% 
   collect_predictions()
 
+log_pred %>% 
+  conf_mat(churn, .pred_class) %>% 
+  autoplot("heatmap")
+
+```
+
+* Random forest
+
+```{r rf-metrics}
+
+rf_res %>%  collect_metrics(summarize = TRUE)
+
 rf_pred <-
   rf_res %>% 
   collect_predictions()
 
-knn_pred <-
-  knn_res %>% 
-  collect_predictions()
-
-
-log_pred %>% 
-  conf_mat(churn, .pred_class) %>% 
-  autoplot()
-
 rf_pred %>% 
-  conf_mat(churn, .pred_class) %>% 
-  autoplot(type = "heatmap")
-
-knn_pred %>% 
   conf_mat(churn, .pred_class) %>% 
   autoplot(type = "heatmap")
 
 
 ```
 
-We can see that our hyperparameter tuned xgboost classification algorithm performed the best out of all models so far, considering specificity and F1-Score.
+* K-nearest neighbor
+
+```{r knn-metrics}
+knn_res %>%  collect_metrics(summarize = TRUE)
+
+knn_pred <-
+  knn_res %>% 
+  collect_predictions()
+
+knn_pred %>% 
+  conf_mat(churn, .pred_class) %>% 
+  autoplot(type = "heatmap")
+```
+
+ * XGBoost
+
+```{r xgb-metrics}
+
+xgb_res %>% collect_metrics(summarize = TRUE)
+
+xgb_pred %>% 
+  conf_mat(churn, .pred_class) %>% 
+  autoplot("heatmap")
+
+```
+
+We can see that our xgboost classification algorithm performed the best out of all models so far, considering specificity and F1-Score.
 
 We will use that model and fine tune it in order to gain a better specificity and thus a higher prediction for churning.
 
 # Model fine tuning
 
+Now all we have to do is perform hyperparameter tuning our xgboost algorithm to select the best values to maximize specificity.
+We repeat the steps from hyperparameter
+
+## Model specification
+
+We have to specify the hyperparameters that we want to tune.
+
+```{r tuned-specification}
+
+xgb_tuned_spec <-
+  boost_tree(
+      mtry = tune(), # number (or proportion) of predictors
+      trees = 10, # number of decision trees. For testing, we will leave it at a lower value
+      min_n = tune(), # minimum number of data points in a node required to split
+      tree_depth = tune(), # maximum splits (depth of decision trees)
+      learn_rate = tune(), # adaption rate over iterations
+      loss_reduction = tune(), # reduction in loss required to split
+      sample_size = tune(), # number (or proportion) of data exposed to fitting
+  ) %>%
+  # model engine
+  set_engine("xgboost") %>%
+  # model mode
+  set_mode("classification")
+
+# show model specification
+xgb_tuned_spec
+
+```
+
+## Workflow
+
+Next we create a new workflow object.
+
+```{r tuned-workflow}
+# workflow pipeline
+xgb_tuned_wflow <-
+  workflow() %>%
+  # specifiy our recipe
+  add_recipe(churn_rec) %>%
+  # and our model
+  add_model(xgb_tuned_spec)
+
+# show workflow
+xgb_tuned_wflow
+```
+
+
+## Grid search
+
+TO DO:  
+size auf 100 setzen, wenn Auswertung finalisiert wird!
+
+In order to tune the parameters we first set up possible values for them. For efficiency reasons we use grid_latin_hypercube().  
+For more information see:  
+https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/main/05-tidymodels-xgboost-tuning.html
+
+```{r grid-search}
+
+xgb_grid <- grid_latin_hypercube(
+  tree_depth(),
+  min_n(),
+  loss_reduction(),
+  sample_size = sample_prop(), # needs to be a proportion
+  finalize(mtry(), train_data), # different approach since mtry depends on number of predictors in data
+  learn_rate(),
+  size = 10
+)
+
+xgb_grid
+```
+
+
+## Hyperparameter tuning
+
+The `r text_spec("tune_grid", color = "red")` function computes the performance metrics for us, which we defined earlier.
+
+```{r tuning}
+# Seeded to make sure we can reproduce the tuning
+set.seed(42) 
+
+xgb_tuned_res <- tune_grid(
+  xgb_tuned_wflow,
+  resamples = cv_folds,
+  grid = xgb_grid,
+  # save the predictions to visualize the data
+  metrics = metric_set(
+      f_meas, 
+      accuracy,
+      roc_auc,
+      recall,
+      precision,
+      spec,
+      sens,
+      ),
+  control = control_grid(save_pred = TRUE) 
+)
+
+xgb_tuned_res
+```
+
+## Explore results
+First we take a look at our metrics
+
+```{r collect-metrics }
+
+collect_metrics(xgb_tuned_res)
+
+```
+
+Then we visualize the specificity for every hyperparamater which gives us a first impression of how well specific values for our hyperparamaters perform. 
+
+```{r roc-auc}
+
+# Credits for the code chunk goes to:
+# https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/main/05-tidymodels-xgboost-tuning.html
+
+# Pivot xgb_tuned_res to longer data format while only filtering for spec
+xgb_res_spec <-
+  xgb_tuned_res %>%
+  collect_metrics() %>%
+  filter(.metric == "spec") %>%
+  select(mean, mtry:sample_size) %>% 
+  pivot_longer(mtry:sample_size,
+               values_to = "value",
+               names_to = "parameter"
+  )
+
+# show specificity side by side for every hyperparameter
+xgb_res_spec %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(alpha = 0.8, show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  scale_color_viridis_d()+
+  labs(x = NULL,
+       y = "Specificity",
+       title = "Values for specificity",
+       subtitle = "For each hyperparameter after tuning")
+
+```
+
+## Finding the best model 
+
+In order to train our model with the best hyperparameters, we evaluate them based on the specificity value depicted in the precious graph.
+
+```{r show-spec}
+show_best(xgb_res, 
+          "spec")
+```
+
+```{r select-best-spec}
+best_spec <- 
+  select_best(
+    xgb_tuned_res, 
+    "spec" 
+    )
+best_spec
+```
+
+This set of values will be chosen for our hyperparameters as it overall provides the best specificity values.
+
+
+## Adding best parameters to Workflow
+
+We create a final workflow which uses our best set of tuned hyperparameters.
+
+```{r add-to-wf}
+
+final_xgb_Wf <- finalize_workflow(
+  xgb_tuned_wflow,
+  best_spec
+)
+
+final_xgb_Wf
+
+```
+
+
+## Tuned Model execution
+
+Fit the model with our finalized workflow.
+```{r execute-tuned-model}
+
+xgb_tuned_res <-
+  final_xgb_Wf %>%
+  fit_resamples(
+    resamples = cv_folds,
+    # Define metrics
+    metrics = metric_set(
+      f_meas, 
+      accuracy,
+      roc_auc,
+      recall,
+      precision,
+      spec,
+      sens,
+      ),
+    # Save predictions 
+    control = control_resamples(save_pred = TRUE)
+  )
+
+```
+
+## Tuned model evaluation
+
+Evaluate the metrics over all folds and show the confusion matrix and ROC curve.
+
+```{r tuned-model-evaluation}
+xgb_tuned_res %>% 
+  collect_metrics(summarize = TRUE)
+
+xgb_tuned_pred <- 
+  xgb_tuned_res %>% 
+  collect_predictions()
+
+xgb_tuned_pred %>% 
+  conf_mat(churn, .pred_class) %>% 
+  autoplot(type = "heatmap")
+
+xgb_tuned_pred %>% 
+  group_by(id) %>% # id contains our folds
+  roc_curve(churn, .pred_0) %>% 
+  autoplot()
+
+xgb_tuned_pred %>% 
+  group_by(id) %>% # id contains our folds
+  roc_curve(churn, .pred_1) %>% 
+  autoplot()
+```
+
+ÜBERARBEITEN:
+Our model is very good at predicting that a customer won't churn (first ROC-curve) but at the same time worse than random guessing (would be a ROC-curve at 45 degrees) if a customer will churn (second ROC-curve).
+
+For our use case we need to make sure that the model has a better specificity since we want to show the cases that are likely to churn. 
+
+In order to find a better model we will train and evaluate some other classifying algorithms and compare all models using the f1 score as a performance measure. 
+
+
 TO DO 
 Specificity erhöhen, damit Model bessere Aussage treffen kann
 
-# Last evaluation (on test set)
+# Last evaluation
 
 <!-- ```{r} -->
 <!-- # Fitte das Modell an die Test Daten, zur Prüfung der Aussagekraft -->
 <!-- # Zeigt die Ergebnisse des Models an, indem Daten geprüft werden, die das Model noch nicht kennt -->
 <!-- last_fit_xgb <- last_fit(xgb_wflow, split = data_split) -->
 
-<!-- # Show RMSE and RSQ -->
-<!-- last_fit_xgb %>% -->
-<!--   collect_metrics() -->
+* Confusion Matrix erstellen
+* ROC Curve erstellen
+* VIP features darstellen
 
-<!-- ``` -->
+# Predictions on new, unlabeled data
 
+In order to see how our model reacts to new data that has not yet been labeled, we fit it to the second dataset provided by kaggle which we stored in our `r text_spec("new_data", color = "red")` dataframe.
 
-# Additional interpretation
+TO DO 
+Tabelle erstellen, die Name, Vertrag, Likely to churn enthält
+Diese soll in Dashboard mit DT abgebildet werden
+
+Abbildung Customer Churn distribution nachstellen für neuen Datensatz
+
+# Conclusion and additional references
 We have seen that our model performs ....
-Since the data provided was anonymized, I used some additional research in order to give an overview of potential features that impact the churn rate.
+Since the data provided was anonymized, you will find some additional information below in order to give you an overview of potential real world features that impact the churn rate of insurance customers.
+
+For example the ...
 To DO:
 Research und relevante Features beschreiben
 ## Relevant features
