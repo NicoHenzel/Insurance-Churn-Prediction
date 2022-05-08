@@ -1,0 +1,102 @@
+#
+# This is a Shiny web application. You can run the application by clicking
+# the 'Run App' button above.
+#
+# Find out more about building applications with Shiny here:
+#
+#    http://shiny.rstudio.com/
+#
+
+# Tabelle mit Predictions übernehmen
+# Abbildungen: 
+# 1. Pie Chart Customer Churn distribution übernehmen auf neuem Datenset
+# 2. VIP Features darstellen
+# 3. Interaktive Bar graphs für 2 wichtigsten Features um Werte anzuschauen
+
+library(shiny) 
+library(shinydashboard)
+
+ui <- dashboardPage(
+  dashboardHeader(title = "Basic dashboard"),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard")),
+      menuItem("Widgets", tabName = "widgets", icon = icon("th"))
+    )
+  ),
+  dashboardBody(
+    tabItems(
+      # First tab content
+      tabItem(tabName = "dashboard",
+              fluidRow(
+                box(plotOutput("plot1", height = 250)),
+
+                box(
+                  title = "Controls",
+                  sliderInput("slider", "Number of observations:", 1, 100, 50)
+                )
+              )
+      ),
+
+      # Second tab content
+      tabItem(tabName = "widgets",
+              h2("Widgets tab content")
+      )
+    )
+  )
+)
+
+server <- function(input, output) {
+  set.seed(42)
+  histdata <- rnorm(500)
+  
+  output$plot1 <- renderPlot({
+    data <- histdata[seq_len(input$slider)]
+    hist(data)
+  })
+}
+
+shinyApp(ui, server)
+
+
+
+
+# 
+# # Define UI for application that draws a histogram
+# ui <- fluidPage(
+# 
+#     # Application title
+#     titlePanel("Old Faithful Geyser Data"),
+# 
+#     # Sidebar with a slider input for number of bins 
+#     sidebarLayout(
+#         sidebarPanel(
+#             sliderInput("bins",
+#                         "Number of bins:",
+#                         min = 1,
+#                         max = 50,
+#                         value = 30)
+#         ),
+# 
+#         # Show a plot of the generated distribution
+#         mainPanel(
+#            plotOutput("distPlot")
+#         )
+#     )
+# )
+# 
+# # Define server logic required to draw a histogram
+# server <- function(input, output) {
+# 
+#     output$distPlot <- renderPlot({
+#         # generate bins based on input$bins from ui.R
+#         x    <- faithful[, 2]
+#         bins <- seq(min(x), max(x), length.out = input$bins + 1)
+# 
+#         # draw the histogram with the specified number of bins
+#         hist(x, breaks = bins, col = 'darkgray', border = 'white')
+#     })
+# }
+# 
+# # Run the application 
+# shinyApp(ui = ui, server = server)
