@@ -11,9 +11,19 @@
 # 2. VIP Features darstellen
 # 3. Interaktive Bar graphs für 2 wichtigsten Features um Werte anzuschauen
 
+######## Setup ###########
 library(shiny) 
 library(shinydashboard)
-# library(tidyverse)
+library(DT)
+
+# Set working directory
+# Note if you run this on your computer you need to specify the directory where you downloaded the files to
+setwd("C:\\Users\\Nico\\Desktop\\Unterlagen_Master_DS_HDM\\SoSe22\\Programming_Languages_for_DS\\Projektarbeit\\churn_prediction\\Insurance-Churn-Prediction\\Dashboard")
+
+######### APP ############
+data <-
+  read.csv("Results.csv")
+
 
 # Set name of dashboard and header elements  
 header <- dashboardHeader(
@@ -87,6 +97,15 @@ body <- dashboardBody(
             width = 12,
             plotOutput("plot1", height = 250)
           )
+        ),
+        # Show predicted data in data table format
+        fluidRow(
+          box(
+            title = tagList( shiny::icon("file"),"Table of contract data"),
+            status = "primary",
+            width = 12,
+            box(DT::dataTableOutput("cdata"),height = 250)
+          )
         )
       ),
       # Second tab content
@@ -124,22 +143,21 @@ ui <-
     skin = "blue",
     header, 
     sidebar, 
-    body
+    body,
+    DT::dataTableOutput("mytable")
     )
 # set the dynamic input
 server <- function(input, output) {
   set.seed(42)
   # use the data we obtained from our ML model
   histdata <- rnorm(500)
-  # LINK_new <- 
-  #   "https://raw.githubusercontent.com/NicoHenzel/Insurance-Churn-Prediction/main/Data/Test.csv"
-  # new_data <- 
-  #   read_csv(LINK_new)
-  # 
-  # 
   output$plot1 <- renderPlot({
     data <- histdata[seq_len(input$slider)]
     hist(data)
+  })
+  
+  output$cdata <- DT::renderDataTable({
+    datatable(data)
   })
   
   output$clientBox <- renderValueBox({
@@ -148,6 +166,9 @@ server <- function(input, output) {
         color = "blue"
       )
     })
+  output$mytable = DT::renderDataTable({
+    mtcars
+  })
 }
 
 shinyApp(ui, server)

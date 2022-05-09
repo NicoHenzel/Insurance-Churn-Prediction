@@ -56,6 +56,7 @@ library(purrr)
 library(Hmisc)
 library(ranger)
 library(kknn)
+library(performanceEstimation)
 ```
 
 <!-- Plot theme setting -->
@@ -98,8 +99,9 @@ The visualization in this project will be realized throug a dashboard.
 
 ## Metrics
 
-The performance of the different models will be measured by the specificity and ROC-curve. These are the most important metrics since we want to make sure that our model predicts more True negatives (= Churn) than False positives in order to give the case handlers the best overview of possible churn candidates.
-Additionally we will check some other performance metrics like recall, precision, sensitivity, F1-Score and the ROC-AUC value to evaluate our models and hyperparameter tuning. 
+We will use the ROC-curve (plotting true positive rate against true negative rate) and the AUC (area under the ROC-curve, how well the algorithm predicts labels). These are the most important metrics since we want to make sure that our model predicts more True negatives (= Churn) than False positives in order to give the case handlers the best overview of possible churn candidates.
+The performance of the different models will be measured by comparing roc-auc and the confusion matrix. We want to make sure that we get the model with the highest amount of
+Additionally we will check some other performance metrics like recall, precision, sensitivity, F1-Score to evaluate our models and hyperparameter tuning. 
 
 The model is successful when: 
 
@@ -363,8 +365,16 @@ explore_data %>%
     aes(label = paste0(percent, "%")),
     position = position_stack(vjust=0.5)
   )
+
+explore_data %>% 
+  count(churn, name ="churn_total") %>%
+  mutate(percent = churn_total/sum(churn_total)*100,
+         percent = round(percent, 2))
+
+table(explore_data$churn)
 ```
 
+The data is imbalanced as nearly 90 % are labeled as not churning. We will compensate for this before performing hyperparameter tuning.
 
 ### Correlation to churn 
 
@@ -681,7 +691,6 @@ df_train_new <-
          feature_5,
          feature_6,
          feature_11,
-         feature_12,
          feature_13,
          churn)
 
@@ -835,8 +844,8 @@ xgb_res <-
       roc_auc,
       recall,
       precision,
-      spec,
-      sens,
+      # spec,
+      # sens,
       ),
     # Save predictions 
     control = control_resamples(save_pred = TRUE)
@@ -884,16 +893,9 @@ xgb_pred %>%
   group_by(id) %>% # id contains our folds
   roc_curve(churn, .pred_0) %>% 
   autoplot()
-
-xgb_pred %>% 
-  group_by(id) %>% # id contains our folds
-  roc_curve(churn, .pred_1) %>% 
-  autoplot()
 ```
 
-Our model is very good at predicting that a customer won't churn (first ROC-curve) but at the same time worse than random guessing (would be a ROC-curve at 45 degrees) if a customer will churn (second ROC-curve).
-
-For our use case we need to make sure that the model has a better specificity since we want to show the cases that are likely to churn. 
+The ROC curve looks really good, but we need to remember that our dataset is still imbalanced.
 
 In order to find a better model we will train and evaluate some other classifying algorithms and compare all models using the f1 score as a performance measure. 
 
@@ -1083,13 +1085,37 @@ We will use that model and fine tune it in order to gain a better specificity an
 
 # Model fine tuning
 
+To adjust our imbalanced data, we will use the synthetic minority oversampling technique `r text_spec("smote()", color = "red")`. This creates more samples of the minority class (in our case the data labeled as not churning) and still keeps the proportions to the majority (labeled as churning). 
+This is needed to improve the performance of our model as it would otherwise have not enough data present to correctly predict the outcomes.
+
+```{r smote}
+
+smote_data <-
+  #performanceEstimation::
+  smote(churn ~., train_data, perc.over = 4, perc.under = 2)
+
+table(smote_data$churn)
+```
+The data ist still imbalanced, but not as much as before.
+
+We will also need to create a new evaluation set with the adjusted dataset.
+```{r new-evaluation-split}
+# Fix random generation, also see data split
+set.seed(42)
+# generate the cross validation set
+cv_folds <-
+  vfold_cv(smote_data,
+           v=5, # number of folds
+           strata = churn, # ensure the same proportion of the churn variable in every fold
+           breaks = 4)
+```
+
 Now all we have to do is perform hyperparameter tuning our xgboost algorithm to select the best values to maximize specificity.
-We repeat the steps from hyperparameter
 
 ## Model specification
 
 We have to specify the hyperparameters that we want to tune.
-
+We also adjust for the rest of the imbalance by using the `r text_spec("scale_pos_weight", color = "red")` hyperparameter to tune.
 ```{r tuned-specification}
 
 xgb_tuned_spec <-
@@ -1103,7 +1129,8 @@ xgb_tuned_spec <-
       sample_size = tune(), # number (or proportion) of data exposed to fitting
   ) %>%
   # model engine
-  set_engine("xgboost") %>%
+  # specifiy scale_pos_weight to account for the imbalanced dataset
+  set_engine("xgboost", scale_pos_weight = tune()) %>%
   # model mode
   set_mode("classification")
 
@@ -1142,11 +1169,12 @@ https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/ma
 ```{r grid-search}
 
 xgb_grid <- grid_latin_hypercube(
+  scale_pos_weight(),
   tree_depth(),
   min_n(),
   loss_reduction(),
   sample_size = sample_prop(), # needs to be a proportion
-  finalize(mtry(), train_data), # different approach since mtry depends on number of predictors in data
+  finalize(mtry(), smote_data), # different approach since mtry depends on number of predictors in data
   learn_rate(),
   size = 10
 )
@@ -1169,13 +1197,11 @@ xgb_tuned_res <- tune_grid(
   grid = xgb_grid,
   # save the predictions to visualize the data
   metrics = metric_set(
-      f_meas, 
+      f_meas,
       accuracy,
       roc_auc,
       recall,
-      precision,
-      spec,
-      sens,
+      precision
       ),
   control = control_grid(save_pred = TRUE) 
 )
@@ -1184,15 +1210,8 @@ xgb_tuned_res
 ```
 
 ## Explore results
-First we take a look at our metrics
 
-```{r collect-metrics }
-
-collect_metrics(xgb_tuned_res)
-
-```
-
-Then we visualize the specificity for every hyperparamater which gives us a first impression of how well specific values for our hyperparamaters perform. 
+We visualize the AUC for every hyperparamater which gives us a first impression of how well specific values for our hyperparamaters perform. 
 
 ```{r roc-auc}
 
@@ -1203,7 +1222,7 @@ Then we visualize the specificity for every hyperparamater which gives us a firs
 xgb_res_spec <-
   xgb_tuned_res %>%
   collect_metrics() %>%
-  filter(.metric == "spec") %>%
+  filter(.metric == "roc_auc") %>%
   select(mean, mtry:sample_size) %>% 
   pivot_longer(mtry:sample_size,
                values_to = "value",
@@ -1217,8 +1236,8 @@ xgb_res_spec %>%
   facet_wrap(~parameter, scales = "free_x") +
   scale_color_viridis_d()+
   labs(x = NULL,
-       y = "Specificity",
-       title = "Values for specificity",
+       y = "Recall",
+       title = "Different values for AUC",
        subtitle = "For each hyperparameter after tuning")
 
 ```
@@ -1229,14 +1248,14 @@ In order to train our model with the best hyperparameters, we evaluate them base
 
 ```{r show-spec}
 show_best(xgb_res, 
-          "spec")
+          "roc_auc")
 ```
 
 ```{r select-best-spec}
 best_spec <- 
   select_best(
     xgb_tuned_res, 
-    "spec" 
+    "roc_auc" 
     )
 best_spec
 ```
@@ -1269,15 +1288,12 @@ xgb_tuned_res <-
   final_xgb_Wf %>%
   fit_resamples(
     resamples = cv_folds,
-    # Define metrics
     metrics = metric_set(
       f_meas, 
       accuracy,
       roc_auc,
       recall,
-      precision,
-      spec,
-      sens,
+      precision
       ),
     # Save predictions 
     control = control_resamples(save_pred = TRUE)
@@ -1305,30 +1321,58 @@ xgb_tuned_pred %>%
   group_by(id) %>% # id contains our folds
   roc_curve(churn, .pred_0) %>% 
   autoplot()
-
-xgb_tuned_pred %>% 
-  group_by(id) %>% # id contains our folds
-  roc_curve(churn, .pred_1) %>% 
-  autoplot()
 ```
 
-ÜBERARBEITEN:
-Our model is very good at predicting that a customer won't churn (first ROC-curve) but at the same time worse than random guessing (would be a ROC-curve at 45 degrees) if a customer will churn (second ROC-curve).
+We can see that our tuned model outperformed every other model regarding the roc curve and roc_auc metric.
+We have lost some percentages in every other metric but since we are still above 80 % accuracy and most importantly the tuned model predicts churning with almost 70% we are will use this model (A custom performance metric could improve the model even further).
 
-For our use case we need to make sure that the model has a better specificity since we want to show the cases that are likely to churn. 
-
-In order to find a better model we will train and evaluate some other classifying algorithms and compare all models using the f1 score as a performance measure. 
-
-
-TO DO 
-Specificity erhöhen, damit Model bessere Aussage treffen kann
 
 # Last evaluation
 
-<!-- ```{r} -->
-<!-- # Fitte das Modell an die Test Daten, zur Prüfung der Aussagekraft -->
-<!-- # Zeigt die Ergebnisse des Models an, indem Daten geprüft werden, die das Model noch nicht kennt -->
-<!-- last_fit_xgb <- last_fit(xgb_wflow, split = data_split) -->
+We can now perform our last fit to the test data we split of earlier.
+
+```{r last-fit}
+# perform last fit of our model on test data
+last_fit_xgb <- 
+  last_fit(final_xgb_Wf,
+           split = data_split,
+           metrics = metric_set(
+             f_meas, 
+             accuracy,
+             roc_auc,
+             recall,
+             precision
+             )
+           )
+```
+
+To see how our model performed we check the performance metrics
+
+```{r performance-last-fit}
+
+last_fit_xgb %>% 
+  collect_metrics()
+
+```
+The roc auc is also at a good value. The other metrics indicate a minimal overfitting since the model fits both the test and training data.
+
+```{r confusion-matrix-last-fit}
+last_fit_xgb %>%
+  collect_predictions() %>% 
+  conf_mat(churn, .pred_class) %>% 
+  autoplot(type = "heatmap")
+```
+
+
+```{r}
+library(vip)
+
+last_fit_xgb %>% 
+  pluck(".workflow", 1) %>%   
+  pull_workflow_fit() %>% 
+  vip(num_features = 10)
+```
+
 
 * Confusion Matrix erstellen
 * ROC Curve erstellen
