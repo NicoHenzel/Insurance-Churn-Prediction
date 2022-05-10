@@ -76,35 +76,27 @@ body <- dashboardBody(
       tabItem(
         tabName = "dashboard",
         h2("Overview of contract churn data"),
-        fluidRow(
-          box(
-            title = "Controls",
-            status = "primary",
-            width = 8,
-            sliderInput(
-              "slider",
-              "Number of observations:", 1, 100, 50)
-          ),
-          # Dynamic valueBoxes
-          valueBoxOutput("clientBox"),
-          # Clicking this will increment the progress amount
-          box(width = 4, actionButton("count", "Increment progress"))
-        ),
-        fluidRow(
-          box(
-            title = tagList( shiny::icon("file"),"Table of contract data"),
-            status = "primary",
-            width = 12,
-            plotOutput("plot1", height = 250)
-          )
-        ),
+
         # Show predicted data in data table format
         fluidRow(
-          box(
+          column(12,
             title = tagList( shiny::icon("file"),"Table of contract data"),
             status = "primary",
-            width = 12,
-            box(DT::dataTableOutput("cdata"),height = 250)
+            #width = 12,
+            box(DT::dataTableOutput("cdata"),
+                height = 600
+                #style = "overflow-x: scroll"
+                ),
+            column(
+              6,
+              fluidRow(
+                valueBoxOutput("clientBox")
+              ),
+              fluidRow(
+                # Clicking this will increment the progress amount
+                box(width = 4, actionButton("count", "Increment progress"))
+              )
+            )
           )
         )
       ),
@@ -117,7 +109,7 @@ body <- dashboardBody(
             title = tagList( shiny::icon("chart-pie"),"Total churn distribution"),
             status = "primary",
             width = 12,
-            plotOutput("plot2", height = 250)
+            imageOutput("pie-chart", height = 250)
           ),
           box(
             title = tagList(shiny::icon("exclamation"),"Most important features"),
@@ -125,13 +117,13 @@ body <- dashboardBody(
             width = 12,
             plotOutput("plot3", height = 250)
           ),
-          tabBox(
-            # Title can include an icon
-            title = tagList( "Bar charts", shiny::icon("chart-bar")),
-            width = 12,
-            tabPanel("Feature 1","Tab content 1"),
-            tabPanel("Feature 2","Tab content 2")
-          )
+          # tabBox(
+          #   # Title can include an icon
+          #   title = tagList( "Bar charts", shiny::icon("chart-bar")),
+          #   width = 12,
+          #   tabPanel("Feature 1","Tab content 1"),
+          #   tabPanel("Feature 2","Tab content 2")
+          #)
         )
       )
     )
@@ -148,16 +140,18 @@ ui <-
     )
 # set the dynamic input
 server <- function(input, output) {
-  set.seed(42)
-  # use the data we obtained from our ML model
-  histdata <- rnorm(500)
-  output$plot1 <- renderPlot({
-    data <- histdata[seq_len(input$slider)]
-    hist(data)
-  })
   
   output$cdata <- DT::renderDataTable({
-    datatable(data)
+    datatable(data,
+              extensions = list(
+                'Buttons' = NULL,
+                "Responsive" = NULL
+              ),
+              options = list(
+                dom = 'Bfrtip',
+                buttons = c( 'csv', 'excel', 'pdf')
+              )
+            )
   })
   
   output$clientBox <- renderValueBox({
@@ -166,9 +160,8 @@ server <- function(input, output) {
         color = "blue"
       )
     })
-  output$mytable = DT::renderDataTable({
-    mtcars
-  })
+  
+  
 }
 
 shinyApp(ui, server)

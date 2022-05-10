@@ -57,6 +57,10 @@ library(Hmisc)
 library(ranger)
 library(kknn)
 library(performanceEstimation)
+library(DT)
+library(plotly)
+library(vip)
+library(htmlwidgets)
 ```
 
 <!-- Plot theme setting -->
@@ -82,7 +86,6 @@ Zusätzlich:
 Customer churn distribution (pie Chart)
 INTERAKTIVE ABBILDUNG MUSS DEFINIERT WERDEN!
 z.B. Korrelation der einzelnen Features mit churn rate darstellen, nach Features und relationshöhe filterbar.
-Tabelle mit Zeilen, die als Churn predicted wurden
 
 
 ## Use case
@@ -99,8 +102,8 @@ The visualization in this project will be realized throug a dashboard.
 
 ## Metrics
 
-We will use the ROC-curve (plotting true positive rate against true negative rate) and the AUC (area under the ROC-curve, how well the algorithm predicts labels). These are the most important metrics since we want to make sure that our model predicts more True negatives (= Churn) than False positives in order to give the case handlers the best overview of possible churn candidates.
-The performance of the different models will be measured by comparing roc-auc and the confusion matrix. We want to make sure that we get the model with the highest amount of
+To measure our models performance, we will use the specificity (True negatives divided by True negatives + False positives). This is the most important metric since we want to make sure that our model predicts more True negatives (= Churn) than False positives in order to give the case handlers the best overview of possible churn candidates.
+The performance of the different models will be measured by comparing the roc-curve, roc-auc and the confusion matrix. We want to make sure that we get the model with the highest amount of
 Additionally we will check some other performance metrics like recall, precision, sensitivity, F1-Score to evaluate our models and hyperparameter tuning. 
 
 The model is successful when: 
@@ -157,13 +160,35 @@ Look at the first rows from each dataframe.
 ```{r slice-training}
 new_training_data %>% 
   slice_head(n=5) %>% 
-  gt()
+  gt() %>% 
+  tab_header(
+    title = md("**Anonymized contract churn data**"),
+    subtitle = md("Training set")
+  ) %>% 
+  tab_source_note(
+    source_note = "Source: Kaggle - Customer Churn Prediction - Weekend Hackathon"
+  ) %>% 
+    tab_source_note(
+    source_note = "https://www.kaggle.com/datasets/k123vinod/insurance-churn-prediction-weekend-hackathon"
+    )
+  
+  
 ```
 
 ```{r slice-test}
 new_data %>% 
   slice_head(n=5) %>% 
-  gt()
+  gt() %>% 
+    tab_header(
+    title = md("**Anonymized contract churn data**"),
+    subtitle = md("Unlabeled dataset")
+  ) %>% 
+  tab_source_note(
+    source_note = "Source: Kaggle - Customer Churn Prediction - Weekend Hackathon"
+  ) %>% 
+    tab_source_note(
+    source_note = "https://www.kaggle.com/datasets/k123vinod/insurance-churn-prediction-weekend-hackathon"
+    )
 ```
 
 This gives us the following informations:
@@ -215,6 +240,7 @@ Let's take a look at the `r text_spec("labels", color = "red")` variable:
 new_training_data %>% 
   count(labels) %>% 
   gt
+
 ```
 
 First the `r text_spec("labels", color = "red")` column will be renamed to `r text_spec("churn", color = "red")`. The column is then transformed into a factor type. This is needed for running the classification algorith.
@@ -229,6 +255,7 @@ df_train <-
   mutate(
     churn = as.factor(churn)
   )
+
 ```
 
 This way the churn is more accurately represented by the`r text_spec("churn", color = "red")` variable: 
@@ -394,7 +421,8 @@ correlation_matrix <-
   # cor() uses the pearson method as default
   cor()
 
-# creat correlation matrix with ggplot 
+# create correlation matrix with ggplot 
+corr_matrx <-
 ggplot(
   melt(correlation_matrix),
   aes(Var1, Var2, fill=value)
@@ -428,11 +456,13 @@ ggplot(
   panel.grid.major=element_blank()
   )
 
+ggplotly(corr_matrx)
 ```
 
 It is also useful to show the specific correlation of each feature to our churn variable:
 
 ```{r churn-correlation-bar-plot, fig3, echo=FALSE}
+churn_cor <-
 correlation_matrix %>% 
   as.data.frame() %>% 
   select(churn) %>% 
@@ -468,6 +498,7 @@ correlation_matrix %>%
       )
     )
 
+ggplotly(churn_cor)
 ```
 
 We can see that the correlation between `r text_spec("churn", color = "red")` and the other features is the following:
@@ -689,9 +720,9 @@ df_train_new <-
   df_train %>% 
   select(feature_3,
          feature_5,
-         feature_6,
+         # feature_6,
          feature_11,
-         feature_13,
+         # feature_13,
          churn)
 
 glimpse(df_train_new)
@@ -839,13 +870,13 @@ xgb_res <-
     resamples = cv_folds,
     # Define metrics
     metrics = metric_set(
-      f_meas, 
+      #f_meas,
+      spec,
       accuracy,
       roc_auc,
       recall,
       precision,
-      # spec,
-      # sens,
+      #sens,
       ),
     # Save predictions 
     control = control_resamples(save_pred = TRUE)
@@ -1092,7 +1123,7 @@ This is needed to improve the performance of our model as it would otherwise hav
 
 smote_data <-
   #performanceEstimation::
-  smote(churn ~., train_data, perc.over = 4, perc.under = 2)
+  smote(churn ~., train_data, perc.over = 3, perc.under = 2)
 
 table(smote_data$churn)
 ```
@@ -1121,7 +1152,7 @@ We also adjust for the rest of the imbalance by using the `r text_spec("scale_po
 xgb_tuned_spec <-
   boost_tree(
       mtry = tune(), # number (or proportion) of predictors
-      trees = 10, # number of decision trees. For testing, we will leave it at a lower value
+      trees = 20, # number of decision trees. For testing, we will leave it at a lower value
       min_n = tune(), # minimum number of data points in a node required to split
       tree_depth = tune(), # maximum splits (depth of decision trees)
       learn_rate = tune(), # adaption rate over iterations
@@ -1176,7 +1207,7 @@ xgb_grid <- grid_latin_hypercube(
   sample_size = sample_prop(), # needs to be a proportion
   finalize(mtry(), smote_data), # different approach since mtry depends on number of predictors in data
   learn_rate(),
-  size = 10
+  size = 20
 )
 
 xgb_grid
@@ -1197,16 +1228,20 @@ xgb_tuned_res <- tune_grid(
   grid = xgb_grid,
   # save the predictions to visualize the data
   metrics = metric_set(
-      f_meas,
+      #f_meas,
+      spec,
       accuracy,
       roc_auc,
       recall,
-      precision
+      precision,
+      #sens
       ),
   control = control_grid(save_pred = TRUE) 
 )
 
-xgb_tuned_res
+metrics <-
+xgb_tuned_res %>% 
+  collect_metrics(summarize = TRUE)
 ```
 
 ## Explore results
@@ -1222,7 +1257,7 @@ We visualize the AUC for every hyperparamater which gives us a first impression 
 xgb_res_spec <-
   xgb_tuned_res %>%
   collect_metrics() %>%
-  filter(.metric == "roc_auc") %>%
+  filter(.metric == "spec") %>%
   select(mean, mtry:sample_size) %>% 
   pivot_longer(mtry:sample_size,
                values_to = "value",
@@ -1236,26 +1271,26 @@ xgb_res_spec %>%
   facet_wrap(~parameter, scales = "free_x") +
   scale_color_viridis_d()+
   labs(x = NULL,
-       y = "Recall",
-       title = "Different values for AUC",
+       y = "Specificty",
+       title = "Different values for specificty",
        subtitle = "For each hyperparameter after tuning")
 
 ```
 
-## Finding the best model 
+## Finding the best parameters 
 
 In order to train our model with the best hyperparameters, we evaluate them based on the specificity value depicted in the precious graph.
 
 ```{r show-spec}
-show_best(xgb_res, 
-          "roc_auc")
+show_best(xgb_tuned_res, 
+          "spec")
 ```
 
 ```{r select-best-spec}
 best_spec <- 
   select_best(
     xgb_tuned_res, 
-    "roc_auc" 
+    "spec" 
     )
 best_spec
 ```
@@ -1289,11 +1324,13 @@ xgb_tuned_res <-
   fit_resamples(
     resamples = cv_folds,
     metrics = metric_set(
-      f_meas, 
+      #f_meas, 
+      spec,
       accuracy,
       roc_auc,
       recall,
-      precision
+      precision,
+      #sens
       ),
     # Save predictions 
     control = control_resamples(save_pred = TRUE)
@@ -1323,8 +1360,8 @@ xgb_tuned_pred %>%
   autoplot()
 ```
 
-We can see that our tuned model outperformed every other model regarding the roc curve and roc_auc metric.
-We have lost some percentages in every other metric but since we are still above 80 % accuracy and most importantly the tuned model predicts churning with almost 70% we are will use this model (A custom performance metric could improve the model even further).
+We can see that our tuned model outperformed every other model regarding the specificity.
+It is still at lower percentage than we would like to have, but we already tuned the model to obtain the best hyperparameters and will still use this model on the test data. In order to improve the performance further, custom performance metric could be generated.
 
 
 # Last evaluation
@@ -1337,11 +1374,14 @@ last_fit_xgb <-
   last_fit(final_xgb_Wf,
            split = data_split,
            metrics = metric_set(
-             f_meas, 
+             #f_meas,
+             spec,
              accuracy,
              roc_auc,
              recall,
-             precision
+             precision,
+             
+             #sens
              )
            )
 ```
@@ -1354,7 +1394,6 @@ last_fit_xgb %>%
   collect_metrics()
 
 ```
-The roc auc is also at a good value. The other metrics indicate a minimal overfitting since the model fits both the test and training data.
 
 ```{r confusion-matrix-last-fit}
 last_fit_xgb %>%
@@ -1363,30 +1402,188 @@ last_fit_xgb %>%
   autoplot(type = "heatmap")
 ```
 
+The specificity is at a low value which means our model did not predict the churn label well regarding the test data. One reason could be that the training data does not contain enough samples that are labeled as churn.
+Normally we would tackle this by training another model and improving our feature engineering to obtain better predictors.
 
 ```{r}
-library(vip)
 
+vip_features <-
 last_fit_xgb %>% 
   pluck(".workflow", 1) %>%   
   pull_workflow_fit() %>% 
   vip(num_features = 10)
+
+ggplotly(vip_features)
+
 ```
 
+The most important feature for the prediction was feature_3.
+The others have a low importane which is another indicator that feature engineering could lead to better results on the test data.
 
-* Confusion Matrix erstellen
-* ROC Curve erstellen
-* VIP features darstellen
+Even if the model predicts only about 30% of the actual churning customers, We can still use it for our use case since it has a very high rate of correctly predicting customers that won't churn. This means it is still better than randomly guessing.
 
 # Predictions on new, unlabeled data
 
-In order to see how our model reacts to new data that has not yet been labeled, we fit it to the second dataset provided by kaggle which we stored in our `r text_spec("new_data", color = "red")` dataframe.
+We will use our model on new data, which has not been labeled yet. We fit it to the second dataset provided by kaggle which we stored in our `r text_spec("new_data", color = "red")` dataframe.
 
-TO DO 
-Tabelle erstellen, die Name, Vertrag, Likely to churn enthält
-Diese soll in Dashboard mit DT abgebildet werden
+In order to make predictions, we need to create an object of class model_fit of our `r text_spec("final_xgb_wf", color = "red")`. This is done using the `r text_spec("fit", color = "red")` function.
 
-Abbildung Customer Churn distribution nachstellen für neuen Datensatz
+```{r predictions}
+# create final model
+final_model <-
+  fit(final_xgb_Wf, df_train_new)
+
+# create predictions
+predictions <-
+predict(final_model, new_data)
+
+# create new dataframe
+new_prediction_data <-
+  new_data
+
+# add predictions to new_data_prediction
+new_prediction_data$churn_prediction <-
+  predictions$.pred_class
+
+# put predictions as first column
+new_prediction_data <-
+  new_prediction_data %>% 
+  select(churn_prediction, everything())
+
+```
+
+In order to make the data more understandable for case handlers, we perform some transformations.
+
+```{r transfrom-predictions}
+
+new_prediction_data <-
+  new_prediction_data %>% 
+  mutate(
+    churn_prediction = as.character(churn_prediction)
+  )
+
+
+new_prediction_data$churn_prediction[new_prediction_data$churn_prediction == 0] <- "no"
+new_prediction_data$churn_prediction[new_prediction_data$churn_prediction == 1] <- "yes"
+
+
+```
+
+Let's take a look at the transformed data
+
+```{r new-data-prediction-labels}
+
+datatable(new_prediction_data,
+              extensions = list(
+                'Buttons' = NULL,
+                "Responsive" = NULL
+              ),
+              options = list(
+                dom = 'Bfrtip',
+                buttons = c( 'csv', 'excel', 'pdf')
+              )
+            )
+```
+
+
+
+Next we recreate the pie chart for our predictions
+```{r pie-chart-prediction}
+new_prediction_data %>% 
+  count(churn_prediction, name ="churn_total") %>%
+  mutate(percent = churn_total/sum(churn_total)*100,
+         percent = round(percent, 2)) %>%
+  ggplot(
+  aes(x="",
+    y=percent,
+    fill=churn_prediction)
+  ) +
+  geom_bar(
+    stat="identity",
+    width=1
+    ) +
+  coord_polar("y") +
+  theme_classic() + 
+  theme(
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  scale_fill_manual(
+    values=c("#ffdb58", "#bcd4e6")
+      ) + 
+  labs(
+    x = NULL,
+    y = NULL,
+    fill = NULL,
+    title = "Predicted customer churn distribution",
+    subtitle = "For insurance contracts") +
+  geom_text(
+    aes(label = paste0(percent, "%")),
+    position = position_stack(vjust=0.5)
+  )
+
+
+table(new_prediction_data$churn_prediction)
+
+```
+
+
+
+We then save the predictions on the new data, our pie chart and the plotly graph of our vip features to our Dashboard folder in order to use it in our dashboard.
+```{r write-csv}
+write.csv(new_prediction_data, "Dashboard\\Results.csv", row.names=FALSE)
+
+fig <-
+ggplotly(vip_features)
+
+htmlwidgets::saveWidget(fig, 
+                        file="Dashboard\\plotly.html",
+                        selfcontained = TRUE)
+
+png("Dashboard\\pie-chart.png")
+par(mar = c(4.1, 4.4, 4.1, 1.9), xaxs="i", yaxs="i")
+
+new_prediction_data %>% 
+  count(churn_prediction, name ="churn_total") %>%
+  mutate(percent = churn_total/sum(churn_total)*100,
+         percent = round(percent, 2)) %>%
+  ggplot(
+  aes(x="",
+    y=percent,
+    fill=churn_prediction)
+  ) +
+  geom_bar(
+    stat="identity",
+    width=1
+    ) +
+  coord_polar("y") +
+  theme_classic() + 
+  theme(
+    axis.line = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  scale_fill_manual(
+    values=c("#ffdb58", "#bcd4e6")
+      ) + 
+  labs(
+    x = NULL,
+    y = NULL,
+    fill = NULL,
+    title = "Predicted customer churn distribution",
+    subtitle = "For insurance contracts") +
+  geom_text(
+    aes(label = paste0(percent, "%")),
+    position = position_stack(vjust=0.5)
+  )
+
+
+dev.off()
+
+```
+
+
 
 # Conclusion and additional references
 We have seen that our model performs ....
