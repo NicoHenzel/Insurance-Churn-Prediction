@@ -15,9 +15,6 @@
 library(shiny) 
 library(shinydashboard)
 library(DT)
-library(ggplot2)
-library(dplyr)
-library(tidyverse)
 
 # Set working directory
 # Note if you run this on your computer you need to specify the directory where you downloaded the files to
@@ -64,7 +61,6 @@ sidebar <-  dashboardSidebar(
         tabName = "charts",
         icon = icon("chart-bar")
         ),
-      # no counterpart needed
       menuItem(
         "Source code", 
         icon = icon("file-code-o"), 
@@ -79,7 +75,6 @@ body <- dashboardBody(
       tabItem(
         tabName = "dashboard",
         h2("Overview of contract churn data"),
-
         # Show predicted data in data table format
         fluidRow(
           column(12,
@@ -112,21 +107,15 @@ body <- dashboardBody(
             title = tagList( shiny::icon("chart-pie"),"Total churn distribution"),
             status = "primary",
             width = 12,
-            imageOutput("pie-chart", height = 250)
+            img(src="pie-chart.png", width=500)
+            
           ),
           box(
             title = tagList(shiny::icon("exclamation"),"Most important features"),
             status = "primary",
             width = 12,
-            img(src="images\\pie-chart.png", width=500)
-          ),
-          # tabBox(
-          #   # Title can include an icon
-          #   title = tagList( "Bar charts", shiny::icon("chart-bar")),
-          #   width = 12,
-          #   tabPanel("Feature 1","Tab content 1"),
-          #   tabPanel("Feature 2","Tab content 2")
-          #)
+            tags$iframe(src = "plotly.html", width="100%", height="400", scrolling="no", seamless="seamless", frameBorder="0")
+          )
         )
       )
     )
