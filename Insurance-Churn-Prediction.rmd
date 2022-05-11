@@ -19,9 +19,7 @@ output:
   toc_float: 
     collapsed: false # show full toc
     smooth_scroll: true # toc scrolling behavior
-  # FOOTER erstellen mit Markdown - Tutorial ansehen
-  #  includes:
-  #   after_body: footer.html # include footer
+
 ---
 <!-- Setup -->
 ```{r setup, include=FALSE}
@@ -81,18 +79,19 @@ A potential use case, where these insights could be applied, is:
 Any insurance company wants to improve (or at least not decrease) their customer loyalty.
 If the insurance case handlers could understand why a customer quits a contract and more importantly if a customer is close to quitting an ongoing contract, they could start countermeasures in order to improve customer service and maybe keep the customer.
 The output from this model could be provided as information within a dashboard, or implemented into existing applications which display contract information to the case handler. This information can then be used to make further decisions by the case handlers.
-The visualization in this project will be realized throug a dashboard.
+The visualization in this project will be realized through a dashboard made in shiny.
 
 ## Metrics
 
-To measure our models performance, we will use the specificity (True negatives / (True negatives + False positives)) and visualize this with a confusion matrix. This is the most important metric since we want to measure how well our model predicts true negatives (churn) and minimizes false positives (model predicting not churning, when churn would be correct) in order to give the case handlers the best overview of possible churn candidates.
+To measure our models performance, we will use the specificity (True negatives / (True negatives + False positives)) and also visualize the predictions with a confusion matrix. The specificity is the most important metric since we want to measure how well our model predicts true negatives (churn) and minimizes false positives (model predicting not churning, when churn would be correct) in order to give the case handlers the best overview of possible churn candidates.
 We will train different models and compare their performance based on specificity and the confusion matrix.
-<!-- The performance of the different models will be measured by comparing the roc-curve, roc-auc and the confusion matrix. We want to make sure that we get the model with the highest amount of -->
-<!-- Additionally we will check some other performance metrics like recall, precision, sensitivity, F1-Score to evaluate our models and hyperparameter tuning.  -->
 
 The model is successful when: 
 
-* Visualized recommendations allow case handlers to identify potential churn and get in contact with customers.
+* Reasonable portion of churning can be predicted on new data
+
+Additionally we will cover our use case with
+* Visualized recommendations that allow case handlers to identify potential churn and get in contact with customers.
 
 # Data understanding
 
@@ -141,7 +140,7 @@ new_split <-
 
 Look at the first rows from each dataframe.
 
-```{r slice-training, echo=FALSE}
+```{r slice-training}
 new_training_data %>% 
   slice_head(n=5) %>% 
   gt() %>% 
@@ -159,7 +158,7 @@ new_training_data %>%
   
 ```
 
-```{r slice-test}
+```{r slice-test, echo=FALSE}
 new_data %>% 
   slice_head(n=5) %>% 
   gt() %>% 
@@ -202,7 +201,7 @@ This makes it easier for us, since no data cleaning needs to be performed.
 ## Format data
 Next we will be inspecting the given data structure and check if there are any missing values in both datasets.
 
-```{r check-format, warning=FALSE}
+```{r check-format, echo=FALSE, warning=FALSE}
 glimpse(new_training_data)
 vis_dat(new_training_data)
 glimpse(new_data)
@@ -222,16 +221,8 @@ We can see that:
 1. The datatype for every variable (feature column) in both datasets is double, although there are variables that only hold integer values (feature_7 to feature_15). In the **Data exploration** section we will inspect the difference between integer and float variables.
 2. There are `r na_training` missing values in the training and `r na_new` in the test dataset.  
 3. The `r text_spec("labels", color = "red")` column is formatted as numeric (dbl). It should be a factor since it is a categorial variable with two levels (1 or 0).  
-Let's take a look at the `r text_spec("labels", color = "red")` variable:
-
-```{r display-labels-variable, echo=FALSE}
-new_training_data %>% 
-  count(labels) %>% 
-  gt
-
-```
-
-First the `r text_spec("labels", color = "red")` column will be renamed to `r text_spec("churn", color = "red")`. The column is then transformed into a factor type. This is needed for running the classification algorith.
+First the `r text_spec("labels", color = "red")` column will be renamed to `r text_spec("churn", color = "red")`.  
+The column is also transformed into a factor type which is needed for running the classification algorithm.
 
 
 ```{r data-modification}
@@ -246,34 +237,13 @@ df_train <-
 
 ```
 
-This way the churn is more accurately represented by the`r text_spec("churn", color = "red")` variable: 
-
-```{r display-churn-variable, echo=FALSE}
-df_train %>% 
-  count(churn, 
-        name ="churn_total") %>%
-  mutate(percent = churn_total/sum(churn_total)*100,
-         percent = round(percent, 2)) %>%
- gt() %>%
-  tab_header(
-    title = "Insurance customers churn rate ",
-    subtitle = "Anonymized training sample"
-  ) %>%
-  cols_label(
-    churn = "Churn",
-    churn_total = "Amount",
-    percent = "Percent"
-  )
-```
-
-
 Note:  
 No new variables will be created, since we work with anonymized data.  
 The **Data exploration** section covers analysis and interpretation of the relations between the variables.
 
 ## Data overview
 
-```{r skim-df-train}
+```{r skim-df-train, echo=FALSE}
 skim(df_train) %>% 
   gt()
 ```
@@ -382,16 +352,27 @@ explore_data %>%
   )
 
 explore_data %>% 
-  count(churn, name ="churn_total") %>%
+  count(churn, 
+        name ="churn_total") %>%
   mutate(percent = churn_total/sum(churn_total)*100,
-         percent = round(percent, 2))
+         percent = round(percent, 2)) %>%
+ gt() %>%
+  tab_header(
+    title = "Insurance customers churn rate ",
+    subtitle = "Anonymized training sample"
+  ) %>%
+  cols_label(
+    churn = "Churn",
+    churn_total = "Amount",
+    percent = "Percent"
+  )
 ```
 
 The data is imbalanced as nearly 90 % are labeled as not churning. We will need to compensate for this before performing hyperparameter tuning.
 
 ### Correlation to churn 
 
-The correlation matrix helps us see different relations between the features as it may indicate a predictive relationship between variables (FUßNOTE EINFÜGEN: https://en.wikipedia.org/wiki/Correlation).
+The correlation matrix helps us see different relations between the features as it may indicate a predictive relationship between variables (See: https://en.wikipedia.org/wiki/Correlation).
 It is formed by calculating the correlation coefficient **r** between each feature. **r** ranges from -1 to 1 and indicates the strength and direction of the linear relation:  
 Positive numbers indicate that greater values of one variable lead to greater values of the other variable which also holds true for lower values (similar behavior).  
 Negative numbers indicate that greater values of one variable correspond to lesser values of the other (opposite behavior).  
@@ -477,7 +458,6 @@ correlation_matrix %>%
     ) +
   theme(
     axis.text.x=element_text(
-      #size=10,
       angle=90,
       vjust=0.25,
       hjust=1
@@ -780,12 +760,12 @@ prepped_data <-
 glimpse(prepped_data)
 ```
 
-```{r prepped-data}
-prepped_data %>% 
-  select(-churn) %>% 
-  ggscatmat(corMethod = "spearman",
-            alpha=0.2)
-```
+<!-- ```{r prepped-data} -->
+<!-- prepped_data %>%  -->
+<!--   select(-churn) %>%  -->
+<!--   ggscatmat(corMethod = "spearman", -->
+<!--             alpha=0.2) -->
+<!-- ``` -->
 
 The recipe is prepared such that the churn variable serves as the outcome which the model should predict.
 We can see that `r text_spec("feature_5", color = "red")` has been removed. This happened by the step_corr() function in the recipe meaning feature_5 correlates with another feature and is not providing additional useful information in model training.
@@ -842,11 +822,11 @@ xgb_res <-
     resamples = cv_folds,
     # Define metrics
     metrics = metric_set(
-      spec,
-      accuracy,
-      roc_auc,
-      recall,
-      precision
+             spec,
+             accuracy,
+             roc_auc,
+             recall,
+             precision
       ),
     # Save predictions 
     control = control_resamples(save_pred = TRUE)
@@ -974,11 +954,11 @@ log_res <-
     resamples = cv_folds,
     # Define metrics
     metrics = metric_set(
-      spec,
-      accuracy,
-      roc_auc,
-      recall,
-      precision
+             spec,
+             accuracy,
+             roc_auc,
+             recall,
+             precision
       ),
     # Save predictions 
     control = control_resamples(save_pred = TRUE)
@@ -1009,11 +989,11 @@ knn_res <-
     resamples = cv_folds,
     # Define metrics
     metrics = metric_set(
-      spec,
-      accuracy,
-      roc_auc,
-      recall,
-      precision
+             spec,
+             accuracy,
+             roc_auc,
+             recall,
+             precision
       ),
     # Save predictions 
     control = control_resamples(save_pred = TRUE)
@@ -1045,23 +1025,23 @@ log_pred %>%
     x = "Truth",
     y = "Prediction"
   )
-
-log_pred %>% 
-  group_by(id) %>% # id contains our folds
-  roc_curve(churn, .pred_0) %>% 
-  autoplot() +
-  labs(
-    title = "ROC curve",
-    subtitle = "LOG model",
-    x = "False positive rate (1- specificity)",
-    y = "True positive rate (sensitivity)",
-    color = "Folds")
+# 
+# log_pred %>% 
+#   group_by(id) %>% # id contains our folds
+#   roc_curve(churn, .pred_0) %>% 
+#   autoplot() +
+#   labs(
+#     title = "ROC curve",
+#     subtitle = "LOG model",
+#     x = "False positive rate (1- specificity)",
+#     y = "True positive rate (sensitivity)",
+#     color = "Folds")
 
 ```
 
 * Random forest
 
-```{r rf-metrics}
+```{r rf-metrics, echo=FALSE}
 
 rf_res %>%  collect_metrics(summarize = TRUE)
 
@@ -1079,23 +1059,23 @@ rf_pred %>%
     y = "Prediction"
   )
 
-rf_pred %>% 
-  group_by(id) %>% # id contains our folds
-  roc_curve(churn, .pred_0) %>% 
-  autoplot() +
-  labs(
-    title = "ROC curve",
-    subtitle = "RF model",
-    x = "False positive rate (1- specificity)",
-    y = "True positive rate (sensitivity)",
-    color = "Folds")
+# rf_pred %>% 
+#   group_by(id) %>% # id contains our folds
+#   roc_curve(churn, .pred_0) %>% 
+#   autoplot() +
+#   labs(
+#     title = "ROC curve",
+#     subtitle = "RF model",
+#     x = "False positive rate (1- specificity)",
+#     y = "True positive rate (sensitivity)",
+#     color = "Folds")
 
 
 ```
 
 * K-nearest neighbor
 
-```{r knn-metrics}
+```{r knn-metrics, echo=FALSE}
 knn_res %>%  collect_metrics(summarize = TRUE)
 
 knn_pred <-
@@ -1112,59 +1092,30 @@ knn_pred %>%
     y = "Prediction"
   )
 
-knn_pred %>% 
-  group_by(id) %>% # id contains our folds
-  roc_curve(churn, .pred_0) %>% 
-  autoplot() +
-  labs(
-    title = "ROC curve",
-    subtitle = "KNN model",
-    x = "False positive rate (1- specificity)",
-    y = "True positive rate (sensitivity)",
-    color = "Folds")
+# knn_pred %>% 
+#   group_by(id) %>% # id contains our folds
+#   roc_curve(churn, .pred_0) %>% 
+#   autoplot() +
+#   labs(
+#     title = "ROC curve",
+#     subtitle = "KNN model",
+#     x = "False positive rate (1- specificity)",
+#     y = "True positive rate (sensitivity)",
+#     color = "Folds")
 ```
 
- * XGBoost
-
-```{r xgb-metrics}
-
-xgb_res %>% collect_metrics(summarize = TRUE)
-
-xgb_pred %>% 
-  conf_mat(churn, .pred_class) %>% 
-  autoplot("heatmap") +
-  labs(
-    title = "Confusion matrix",
-    subtitle = "XGB model",
-    x = "Truth",
-    y = "Prediction"
-  )
-
-xgb_pred %>% 
-  group_by(id) %>% # id contains our folds
-  roc_curve(churn, .pred_0) %>% 
-  autoplot() +
-  labs(
-    title = "ROC curve",
-    subtitle = "XGB model",
-    x = "False positive rate (1- specificity)",
-    y = "True positive rate (sensitivity)",
-    color = "Folds")
-
-```
-
-We can see that our xgboost classification algorithm performed the best out of all models so far, considering specificity and the ROC curve.
+We can see that our xgboost classification algorithm performed the best out of all models so far, considering specificity and the confusion matrix.
 
 We will use that model and fine tune it in order to gain a better specificity and thus a higher prediction for churning.
 
 # Model fine tuning
 
-To adjust our imbalanced data, we will use the synthetic minority oversampling technique `r text_spec("smote()", color = "red")`. This creates more samples of the minority class (in our case the data labeled as not churning) and still keeps the proportions to the majority (labeled as churning).
+To adjust our imbalanced data, we will use the synthetic minority oversampling technique `r text_spec("smote()", color = "red")`.
 
 ```{r smote}
 
 smote_data <-
-  # Generate more samples of the minority label (churn) while also keeping the proportion to the majority label (no churn) 
+  # Generate more samples of the minority label (churn) while also decreasing samples of the majority label (no churn) 
   smote(churn ~., train_data, perc.over = 3, perc.under = 2)
 
 table(smote_data$churn)
@@ -1194,7 +1145,7 @@ We also adjust for the rest of the imbalance by using `r text_spec("scale_pos_we
 xgb_tuned_spec <-
   boost_tree(
       mtry = tune(), # number (or proportion) of predictors
-      trees = 50, # number of decision trees. For testing, we can leave it at a lower value
+      trees = 10, # number of decision trees. For testing, we can leave it at a lower value
       min_n = tune(), # minimum number of data points in a node required to split
       tree_depth = tune(), # maximum splits (depth of decision trees)
       learn_rate = tune(), # adaption rate over iterations
@@ -1246,11 +1197,8 @@ xgb_grid <- grid_latin_hypercube(
   sample_size = sample_prop(), # needs to be a proportion
   finalize(mtry(), smote_data), # different approach since mtry depends on number of predictors in data
   learn_rate(),
-  size = 50
+  size = 10
 )
-
-xgb_grid %>% 
-  gt()
 ```
 
 
@@ -1268,11 +1216,11 @@ xgb_tuned_res <- tune_grid(
   grid = xgb_grid,
   # save the predictions to visualize the data
   metrics = metric_set(
-      spec,
-      accuracy,
-      roc_auc,
-      recall,
-      precision
+             spec,
+             accuracy,
+             roc_auc,
+             recall,
+             precision
       ),
   control = control_grid(save_pred = TRUE) 
 )
@@ -1309,8 +1257,8 @@ xgb_res_spec %>%
   facet_wrap(~parameter, scales = "free_x") +
   scale_color_viridis_d()+
   labs(x = NULL,
-       y = "Specificty",
-       title = "Different values for specificty",
+       y = "Specificity",
+       title = "Different values for specificity",
        subtitle = "For each hyperparameter after tuning")
 
 ggplotly(spec_tuning_comp)
@@ -1339,7 +1287,7 @@ This set of values will be chosen for our hyperparameters as it overall provides
 
 We create a final workflow which uses our best set of hyperparameters.
 
-```{r add-to-wf, echo=FALSE}
+```{r add-to-wf}
 
 final_xgb_Wf <- finalize_workflow(
   xgb_tuned_wflow,
@@ -1361,11 +1309,11 @@ xgb_tuned_res <-
   fit_resamples(
     resamples = cv_folds,
     metrics = metric_set(
-      spec,
-      accuracy,
-      roc_auc,
-      recall,
-      precision
+             spec,
+             accuracy,
+             roc_auc,
+             recall,
+             precision
       ),
     # Save predictions 
     control = control_resamples(save_pred = TRUE)
@@ -1377,7 +1325,7 @@ xgb_tuned_res <-
 
 Evaluate the metrics over all folds and show the confusion matrix and ROC curve.
 
-```{r tuned-model-evaluation}
+```{r tuned-model-evaluation, echo=FALSE}
 xgb_tuned_res %>% 
   collect_metrics(summarize = TRUE)
 
@@ -1449,6 +1397,17 @@ last_fit_xgb %>%
     x = "Truth",
     y = "Prediction"
   )
+# 
+# last_fit_xgb %>% 
+#   group_by(id) %>% # id contains our folds
+#   roc_curve(churn, .pred_0) %>% 
+#   autoplot()  +
+#   labs(
+#     title = "ROC curve",
+#     subtitle = "XGB tuned model on test data",
+#     x = "False positive rate (1- specificity)",
+#     y = "True positive rate (sensitivity)",
+#     color = "Folds")
 ```
 
 The specificity is at a low value which means our model did not predict the churn label well regarding the test data.
@@ -1468,8 +1427,6 @@ ggplotly(vip_features)
 We can see that the most important feature for the prediction was  `r text_spec("feature_3", color = "red")`.
 The others have a relatively low importance which is an indicator that feature engineering would have given better results on the test data.
 
-
-## Conclusion
 The results point towards an underfitting scenario where our model is not complex enough to accurately predict the churn with the given data. In order to improve the performance further, custom performance metrics or new features could be generated.
 Another step would be to use different models (like neural networks) or an ensemble of models. 
 
@@ -1481,7 +1438,7 @@ We will use our model on new data, which has not been labeled yet. We fit it to 
 
 In order to make predictions, we need to create an object of class model_fit of our `r text_spec("final_xgb_wf", color = "red")`. This is done using the `r text_spec("fit", color = "red")` function.
 
-```{r predictions, warning=FALSE}
+```{r predictions, message=FALSE, warning=FALSE}
 # create final model
 final_model <-
   fit(final_xgb_Wf, df_train_new)
@@ -1589,9 +1546,11 @@ new_prediction_data %>%
 
 
 We then save the predictions on the new data, our pie chart and the plotly graph of our vip features to our Dashboard folder in order to use it in our dashboard.
-```{r write-csv}
+```{r save-files}
+# save data
 write.csv(new_prediction_data, "Dashboard\\Results.csv", row.names=FALSE)
 
+# save plotly chart vip-features as html
 fig <-
 ggplotly(vip_features)
 
@@ -1599,6 +1558,7 @@ htmlwidgets::saveWidget(fig,
                         file="Dashboard\\insurance-churn-dashboard\\www\\plotly.html",
                         selfcontained = TRUE)
 
+# save pie chart as png
 png("Dashboard\\insurance-churn-dashboard\\www\\pie-chart.png")
 par(mar = c(4.1, 4.4, 4.1, 1.9), xaxs="i", yaxs="i")
 pie_chart
@@ -1608,9 +1568,9 @@ dev.off()
 
 
 
-# Conclusion and additional references
-This report shows how to build a classifier algorithm for anonymized data. We have seen that our model still has room for improvement due to underfitting. I suggested, that additional feature engineering and using model ensembling could lead to better results.
+# Conclusion
+This report shows how to build a classifier algorithm for anonymized data. We have seen that our model still has room for improvement due to underfitting. The model does not predict churning at a high rate. Depending on the use case this performance has to be enhanced. I suggested, that additional feature engineering and model stacking could lead to better results.
 
-The dashboard created is a mockup for displaying predictions regarding chruning to case handlers of contract data.
+The created dashboard is a mockup in order to display the models predictions to case handlers of contract data.
 You can access the source code for this report and the dashboard here:
 https://github.com/NicoHenzel/Insurance-Churn-Prediction

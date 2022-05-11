@@ -15,6 +15,8 @@
 library(shiny) 
 library(shinydashboard)
 library(DT)
+library(ggplot2)
+library(tidyverse)
 
 # Set working directory
 # Note if you run this on your computer you need to specify the directory where you downloaded the files to
@@ -26,7 +28,7 @@ data <-
 
 
 # Set name of dashboard and header elements  
-header <- dashboardHeader(
+  header <- dashboardHeader(
     title = "Insurance churn",
     # Specify menu items on the right
     dropdownMenu(
@@ -79,11 +81,8 @@ body <- dashboardBody(
         fluidRow(
           column(12,
             title = tagList( shiny::icon("file"),"Table of contract data"),
-            status = "primary",
-            #width = 12,
-            box(DT::dataTableOutput("cdata"),
-                height = 600
-                #style = "overflow-x: scroll"
+            status = "primary", box(DT::dataTableOutput("cdata"),
+            height = 600
                 ),
             column(
               6,
@@ -107,8 +106,8 @@ body <- dashboardBody(
             title = tagList( shiny::icon("chart-pie"),"Total churn distribution"),
             status = "primary",
             width = 12,
-            img(src="pie-chart.png", width=500)
-            
+            # img(src="pie-chart.png", width=500)
+            plotOutput("plot", width = 600)
           ),
           box(
             title = tagList(shiny::icon("exclamation"),"Most important features"),
@@ -152,6 +151,43 @@ server <- function(input, output) {
         color = "blue"
       )
     })
+  
+  output$plot <- renderPlot(
+    data %>% 
+      count(churn_prediction, name ="churn_total") %>%
+      mutate(percent = churn_total/sum(churn_total)*100,
+             percent = round(percent, 2)) %>%
+      ggplot(
+        aes(x="",
+            y=percent,
+            fill=churn_prediction)
+      ) +
+      geom_bar(
+        stat="identity",
+        width=1
+      ) +
+      coord_polar("y") +
+      theme_classic() + 
+      theme(
+        axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()
+      ) +
+      scale_fill_manual(
+        values=c("#ffdb58", "#bcd4e6")
+      ) + 
+      labs(
+        x = NULL,
+        y = NULL,
+        fill = NULL,
+        title = "Predicted customer churn distribution",
+        subtitle = "On new dataset") +
+      geom_text(
+        aes(label = paste0(percent, "%")),
+        position = position_stack(vjust=0.5)
+      )
+    
+    )
   
   # output$plot3 <- renderPlot({
   #   # data %>% 
