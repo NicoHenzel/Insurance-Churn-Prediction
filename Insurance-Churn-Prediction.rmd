@@ -1452,7 +1452,7 @@ new_prediction_data <-
 
 ```
 
-In order to make the data more understandable for case handlers, we perform some transformations.
+We change the prediction labels to better represent the churn.
 
 ```{r transfrom-predictions}
 
@@ -1586,7 +1586,8 @@ dev.off()
 
 
 # Conclusion and additional references
-We have seen that our model performs ....
+This report shows how to build a classifier algorithm for anonymized data.We have seen that our model still has room for improvement. I suggested, that additional eature engineering and using less imbalanced data could provide a model with better results.
+
 Since the data provided was anonymized, you will find some additional information below in order to give you an overview of potential real world features that impact the churn rate of insurance customers.
 
 For example the ...

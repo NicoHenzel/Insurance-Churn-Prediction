@@ -15,6 +15,9 @@
 library(shiny) 
 library(shinydashboard)
 library(DT)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
 
 # Set working directory
 # Note if you run this on your computer you need to specify the directory where you downloaded the files to
@@ -115,7 +118,7 @@ body <- dashboardBody(
             title = tagList(shiny::icon("exclamation"),"Most important features"),
             status = "primary",
             width = 12,
-            plotOutput("plot3", height = 250)
+            img(src="images\\pie-chart.png", width=500)
           ),
           # tabBox(
           #   # Title can include an icon
@@ -160,6 +163,45 @@ server <- function(input, output) {
         color = "blue"
       )
     })
+  
+  # output$plot3 <- renderPlot({
+  #   # data %>% 
+  #   # ggplot(aes_string(x = data$feature_0, y = data$feature_1))+
+  #   #   geom_point()
+  #   data %>% 
+  #     count(churn_prediction, name ="churn_total") %>%
+  #     mutate(percent = churn_total/sum(churn_total)*100,
+  #            percent = round(percent, 2)) %>%
+  #     ggplot(
+  #       aes_string(x="",
+  #           y=data$percent,
+  #           fill=data$churn_prediction)
+  #     ) +
+  #     geom_bar(
+  #       stat="identity",
+  #       width=1
+  #     ) +
+  #     coord_polar("y") +
+  #     theme_classic() + 
+  #     theme(
+  #       axis.line = element_blank(),
+  #       axis.text = element_blank(),
+  #       axis.ticks = element_blank()
+  #     ) +
+  #     scale_fill_manual(
+  #       values=c("#ffdb58", "#bcd4e6")
+  #     ) + 
+  #     labs(
+  #       x = NULL,
+  #       y = NULL,
+  #       fill = NULL,
+  #       title = "Predicted customer churn distribution",
+  #       subtitle = "For insurance contracts") +
+  #     geom_text(
+  #       aes(label = paste0(percent, "%")),
+  #       position = position_stack(vjust=0.5)
+  #     )
+  # })
   
   
 }
