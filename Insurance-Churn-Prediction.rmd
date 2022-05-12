@@ -316,7 +316,7 @@ explore_data <-
 ### Churn distribution
 
 The ratio of customers that have churned within the training data set is depicted below.
-```{r pie-chart, fig1, echo=FALSE}
+```{r pie-chart, fig1}
 explore_data %>% 
   count(churn, name ="churn_total") %>%
   mutate(percent = churn_total/sum(churn_total)*100,
@@ -479,7 +479,7 @@ To further inspect the relation between `r text_spec("churn", color = "red")` an
 ### Float Variables
 We will start with boxplots and histograms for the float variables.
 
-```{r boxplot-multiplot-float, fig.asp=0.618, echo=FALSE}
+```{r boxplot-multiplot-float, fig.asp=0.618}
 # Credits for the code chunks goes to:
 # https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#evaluate-models
 
@@ -524,7 +524,7 @@ y_var_float <-
 map(y_var_float, print_boxplot_float)
 ```
 
-```{r bar-multiplot-float, fig.asp=0.618, echo=FALSE}
+```{r bar-multiplot-float, fig.asp=0.618}
 # Credits for the code chunks goes to:
 # https://www.kirenz.com/post/2021-02-17-r-classification-tidymodels/#evaluate-models
 
@@ -750,7 +750,7 @@ summary(churn_rec)
 
 We check how the recipe will affect our training data
 
-```{r check-preprocessing, echo=FALSE}
+```{r check-preprocessing}
 prepped_data <-
   churn_rec %>% # use the recipe object
   prep() %>% # apply recipe
@@ -1481,7 +1481,7 @@ new_prediction_data$churn_prediction[new_prediction_data$churn_prediction == 1] 
 
 Let's take a look at the transformed data
 
-```{r new-data-prediction-labels, echo=FALSE, warning=FALSE}
+```{r new-data-prediction-labels, warning=FALSE}
 
 datatable(new_prediction_data,
               extensions = list(
