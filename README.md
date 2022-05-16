@@ -31,3 +31,7 @@ The data is found in the *data* folder.
 Since this is a public project, the data used for it is also publicly available.
 It was taken from the Insurance Churn Prediction: Weekend Hackathon from kaggle (see: https://www.kaggle.com/datasets/k123vinod/insurance-churn-prediction-weekend-hackathon, last visited: 2022-04-25 18:46)
 The Hackathon was originally hosted by Machine Hack in 2020 (https://www.machinehack.com/course/insurance-churn-prediction-weekend-hackathon-2/), this Website is not reachable anylonger, thus the data was downloaded from kaggle.
+
+* License
+
+This project is licensed with LGPL. For more information checkl the "License" file.
