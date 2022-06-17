@@ -222,19 +222,31 @@ We can see that:
 2. There are `r na_training` missing values in the training and `r na_new` in the test dataset.  
 3. The `r text_spec("labels", color = "red")` column is formatted as numeric (dbl). It should be a factor since it is a categorial variable with two levels (1 or 0).  
 First the `r text_spec("labels", color = "red")` column will be renamed to `r text_spec("churn", color = "red")`.  
-The column is also transformed into a factor type which is needed for running the classification algorithm.
+The column is also transformed into a factor type which is needed for running the classification algorithm.  
+Next we will change every integer variable to a factor since they hold either binary or categorial values.
 
 
 ```{r data-modification}
-# Rename labels
 df_train <-
   new_training_data %>% 
+  # Rename labels
   rename(churn = labels) %>% 
-# Change column type to factor
+  # Change column type to factor
   mutate(
     churn = as.factor(churn)
-  )
-
+    )
+  # # change every integer column to factor
+  # mutate(
+  #   feature_7 = as.factor(feature_7),
+  #   feature_8 = as.factor(feature_8),
+  #   feature_9 = as.factor(feature_9),
+  #   feature_10 = as.factor(feature_10),
+  #   feature_11 = as.factor(feature_11),
+  #   feature_12 = as.factor(feature_12),
+  #   feature_13 = as.factor(feature_13),
+  #   feature_14 = as.factor(feature_14),
+  #   feature_15 = as.factor(feature_15)
+  #     )
 ```
 
 Note:  
@@ -269,7 +281,7 @@ data_split <-
   initial_split(
     df_train, # original training dataset
     prop = 3/4, # 75/25 split
-    strata = churn # stratified on churn variable
+   # strata = churn # stratified on churn variable
     )
 # Create the dataframes for training and testing
 train_data <- training(data_split) 
@@ -386,7 +398,7 @@ correlation_matrix <-
   # change labels to churn for plot
   rename(churn = labels) %>% 
   # cor() uses the pearson method as default
-  cor()
+  cor(method = "spearman")
 
 # create correlation matrix with ggplot 
 corr_matrx <-
@@ -472,7 +484,8 @@ We can see that the correlation between `r text_spec("churn", color = "red")` an
 * It correlates not or very weak with most of the features  
 * `r text_spec("feature_3", color = "red")` has a moderat positive correlation with `r text_spec("churn", color = "red")`.  
 * `r text_spec("feature_5 & 6", color = "red")` correlate slightly positive.  
-* `r text_spec("feature_11 & 13", color = "red")` correlate slightly negative.
+* `r text_spec("feature_11 & 13", color = "red")` correlate slightly negative.  
+* Additionally `r text_spec("feature_5 & 6", color = "red")` correlate nearly perfectly linear with each other.
 
 To further inspect the relation between `r text_spec("churn", color = "red")` and other variables we will create plots for each variable.
 
@@ -603,7 +616,7 @@ print_boxplot_int <- function(.y_var){
 
 y_var_int <-
   explore_data %>% 
-  # select feature_0 - 6 since those contain float numbers
+  # select feature_7 - 15 since those contain int numbers
   select(8:16) %>% 
   # obtain names
   variable.names()
@@ -636,7 +649,7 @@ print_bar_int <- function(.x_var){
 
 x_var_int <-
   explore_data %>% 
-  # select feature_0 - 6 since those contain float numbers
+  # select feature_7 - 15 since those contain int numbers
   select(8:16) %>%
   # obtain names
   variable.names()
@@ -678,13 +691,14 @@ Before model training we will:
 Select the outcome and predictors for our model
 ```{r select-relevant-variables}
 df_train_new <-
-  df_train %>% 
-  select(feature_3,
-         feature_5,
-         feature_6,
-         feature_11,
-         feature_13,
-         churn)
+  df_train
+#%>% 
+  # select(feature_3,
+  #        feature_5,
+  #        feature_6,
+  #        feature_11,
+  #        feature_13,
+  #        churn)
 ```
 
 
@@ -699,7 +713,7 @@ data_split <-
   initial_split(
     df_train_new, # updated data
     prop = 3/4, # 75/25 split
-    strata = churn # stratified on churn variable
+    #strata = churn # stratified on churn variable
     )
 # Create the dataframes for training and testing
 train_data <- training(data_split) 
@@ -717,8 +731,9 @@ set.seed(42)
 cv_folds <-
   vfold_cv(train_data,
            v=5, # number of folds
-           strata = churn, # ensure the same proportion of the churn variable in every fold
-           breaks = 4)
+           #strata = churn, # ensure the same proportion of the churn variable in every fold
+           #breaks = 4
+           )
 ```
 
 
@@ -1129,9 +1144,10 @@ set.seed(42)
 # generate the cross validation set
 cv_folds <-
   vfold_cv(smote_data,
-           v=5, # number of folds
-           strata = churn, # ensure the same proportion of the churn variable in every fold
-           breaks = 4)
+           v=6, # number of folds
+           # strata = churn, # ensure the same proportion of the churn variable in every fold
+           # breaks = 4
+           )
 ```
 
 Now all we have to do is perform hyperparameter tuning our xgboost algorithm to select the best values to maximize specificity.
@@ -1145,7 +1161,7 @@ We also adjust for the rest of the imbalance by using `r text_spec("scale_pos_we
 xgb_tuned_spec <-
   boost_tree(
       mtry = tune(), # number (or proportion) of predictors
-      trees = 10, # number of decision trees. For testing, we can leave it at a lower value
+      trees = 100, # number of decision trees. For testing, we can leave it at a lower value
       min_n = tune(), # minimum number of data points in a node required to split
       tree_depth = tune(), # maximum splits (depth of decision trees)
       learn_rate = tune(), # adaption rate over iterations
@@ -1197,7 +1213,7 @@ xgb_grid <- grid_latin_hypercube(
   sample_size = sample_prop(), # needs to be a proportion
   finalize(mtry(), smote_data), # different approach since mtry depends on number of predictors in data
   learn_rate(),
-  size = 10
+  size = 40
 )
 ```
 
