@@ -76,7 +76,7 @@ The goal for this project is to train a classification algorithm with anonymized
 Since the outcome is categorial (customer stays or leaves) and the churn in the available training data is labeled, we face a supervised learning problem that can be solved with a classification model.  
 
 A potential use case, where these insights could be applied, is:  
-Any insurance company wants to improve (or at least not decrease) their customer loyalty.
+Any insurance company wants to improve (or at least keep) their customer loyalty.
 If the insurance case handlers could understand why a customer quits a contract and more importantly if a customer is close to quitting an ongoing contract, they could start countermeasures in order to improve customer service and maybe keep the customer.
 The output from this model could be provided as information within a dashboard, or implemented into existing applications which display contract information to the case handler. This information can then be used to make further decisions by the case handlers.
 The visualization in this project will be realized through a dashboard made in shiny.
@@ -88,7 +88,7 @@ We will train different models and compare their performance based on specificit
 
 The model is successful when: 
 
-* Reasonable portion of churning can be predicted on new data
+* Reasonable portion (> 30%) of customer churning can be predicted on new data
 
 Additionally we will cover our use case with
 * Visualized recommendations that allow case handlers to identify potential churn and get in contact with customers.
@@ -190,7 +190,7 @@ This gives us the following informations:
   
 3. The `r text_spec("labels", color = "red")` column is a boolean (1 or 0) which only appears in the training data set.  
 This variable can be seen as the indicator for churning, since the column doesn't appear in the given test data.  
-This also means, that the provided test data can be trated as new data to simulate a churn prediction on.
+This also means, that the provided test data can be treated as new data to simulate a churn prediction on.
 
 
 ## Clean data
@@ -219,11 +219,10 @@ na_new <-
 We can see that:
 
 1. The datatype for every variable (feature column) in both datasets is double, although there are variables that only hold integer values (feature_7 to feature_15). In the **Data exploration** section we will inspect the difference between integer and float variables.
-2. There are `r na_training` missing values in the training and `r na_new` in the test dataset.  
+2. There are `r na_training` missing values in the training and `r na_new` in the new dataset.  
 3. The `r text_spec("labels", color = "red")` column is formatted as numeric (dbl). It should be a factor since it is a categorial variable with two levels (1 or 0).  
 First the `r text_spec("labels", color = "red")` column will be renamed to `r text_spec("churn", color = "red")`.  
 The column is also transformed into a factor type which is needed for running the classification algorithm.  
-Next we will change every integer variable to a factor since they hold either binary or categorial values.
 
 
 ```{r data-modification}
@@ -235,18 +234,6 @@ df_train <-
   mutate(
     churn = as.factor(churn)
     )
-  # # change every integer column to factor
-  # mutate(
-  #   feature_7 = as.factor(feature_7),
-  #   feature_8 = as.factor(feature_8),
-  #   feature_9 = as.factor(feature_9),
-  #   feature_10 = as.factor(feature_10),
-  #   feature_11 = as.factor(feature_11),
-  #   feature_12 = as.factor(feature_12),
-  #   feature_13 = as.factor(feature_13),
-  #   feature_14 = as.factor(feature_14),
-  #   feature_15 = as.factor(feature_15)
-  #     )
 ```
 
 Note:  
@@ -264,7 +251,7 @@ The overview shows:
 
 * Feature_7 - 15 are discrete and furthermore feature_10 - 12 seem to be binary (1 or 0).
 * Every other feature column holds continuous values.
-* The maximum and minimum values differ quite a bit, which means the scale for the variables have different scales. This issue will be solved in the **Data preparation** section through feature scaling (data normalization).
+* The maximum and minimum values differ quite a bit, which means the variables have different scales. This issue will be solved in the **Data preparation** section through feature scaling (data normalization).
 * Feature 0-6 have a positive skew shown by the histograms. This does not need to be addressed for our classifier models (normal distributions are not needed).
 * The shown stats (mean, sd, perecentiles) are nearly impossible to interpret at this point since we don't know what the variables itself mean.
 
@@ -281,7 +268,6 @@ data_split <-
   initial_split(
     df_train, # original training dataset
     prop = 3/4, # 75/25 split
-   # strata = churn # stratified on churn variable
     )
 # Create the dataframes for training and testing
 train_data <- training(data_split) 
@@ -315,7 +301,7 @@ explore_data$churn[explore_data$churn == "1"] <-
   "yes"
 explore_data$churn[explore_data$churn == "0"] <-
   "no"
-#Change column type back to factor
+# Change column type back to factor
 explore_data <-
   explore_data %>% 
   mutate(
@@ -385,7 +371,7 @@ The data is imbalanced as nearly 90 % are labeled as not churning. We will need 
 ### Correlation to churn 
 
 The correlation matrix helps us see different relations between the features as it may indicate a predictive relationship between variables (See: https://en.wikipedia.org/wiki/Correlation).
-It is formed by calculating the correlation coefficient **r** between each feature. **r** ranges from -1 to 1 and indicates the strength and direction of the linear relation:  
+It is formed by calculating the correlation coefficient **r** between each feature. **r** ranges from -1 to +1 and indicates the strength and direction of the linear relation:  
 Positive numbers indicate that greater values of one variable lead to greater values of the other variable which also holds true for lower values (similar behavior).  
 Negative numbers indicate that greater values of one variable correspond to lesser values of the other (opposite behavior).  
 (See: https://en.wikipedia.org/wiki/Correlation and https://en.wikipedia.org/wiki/Covariance)
@@ -481,11 +467,11 @@ ggplotly(churn_cor)
 
 We can see that the correlation between `r text_spec("churn", color = "red")` and the other features is the following:
 
-* It correlates not or very weak with most of the features  
-* `r text_spec("feature_3", color = "red")` has a moderat positive correlation with `r text_spec("churn", color = "red")`.  
-* `r text_spec("feature_5 & 6", color = "red")` correlate slightly positive.  
-* `r text_spec("feature_11 & 13", color = "red")` correlate slightly negative.  
-* Additionally `r text_spec("feature_5 & 6", color = "red")` correlate nearly perfectly linear with each other.
+* It does not correlate significantly with most of the features  (|r| < 0.1)
+* `r text_spec("feature_3", color = "red")` has a moderate positive correlation with `r text_spec("churn", color = "red")` (r > 0.3).  
+* `r text_spec("feature_5 & 6", color = "red")` correlate slightly positive (r > 0.1).  
+* `r text_spec("feature_11 & 13", color = "red")` correlate slightly negative (r < -0.1).  
+* Additionally `r text_spec("feature_5 & 6", color = "red")` correlate nearly perfectly linear with each other (r ~ 1) .
 
 To further inspect the relation between `r text_spec("churn", color = "red")` and other variables we will create plots for each variable.
 
@@ -669,9 +655,8 @@ Again, this is a confirmation of what we have seen before:
 * The scales for integer variables are also different (although not to the same extent as for the float variables).
 
 
-As a conclusion, we will train our model with 
+As a conclusion, we expect the following features to have the most impact on our model training: 
 
-* `r text_spec("feature 3", color = "red")`
 * `r text_spec("feature 5", color = "red")`
 * `r text_spec("feature 6", color = "red")`
 * `r text_spec("feature 11", color = "red")`
@@ -682,47 +667,15 @@ As a conclusion, we will train our model with
 
 Before model training we will:  
 
-* select our previous identified variables that have an effect on churn  
-* create a data split with out freshly gained insights  
-* create a recipe to remove outliers and perform feature scaling  
 * create a validation set
+* create a recipe to remove outliers and perform feature scaling  
 
-## Select relevant variables
-Select the outcome and predictors for our model
-```{r select-relevant-variables}
-df_train_new <-
-  df_train
-#%>% 
-  # select(feature_3,
-  #        feature_5,
-  #        feature_6,
-  #        feature_11,
-  #        feature_13,
-  #        churn)
-```
-
-
-## New Data split
-The data split will be done once again on the `r text_spec("df_train_new", color = "red")` in order to only contain the relevant features.
-
-```{r data-split}
-# Seeded split to provide the same split everytime the split is made to make sure we always use the same data for model training.
-set.seed(42)
-# Split the data with a 75/25 proportion in favor for the training set
-data_split <- 
-  initial_split(
-    df_train_new, # updated data
-    prop = 3/4, # 75/25 split
-    #strata = churn # stratified on churn variable
-    )
-# Create the dataframes for training and testing
-train_data <- training(data_split) 
-test_data <- testing(data_split)
-```
+We will train our model with all available features in order to gain insights on potentially relevant features selected by the algorithm itself.
+This will be done using the `r text_spec("vip()", color = "red")` function after performing the last evaluation.
 
 ## Validation set
 
-For the validation set a k-fold crossvalidation with a set of 10 validation folds will be used. Also, the sample is stratified. This makes sure that every characteristic of the data is properly represented in each sample. The validation set is used in order to check the models performance on the training dataset.
+For the validation set a k-fold crossvalidation with a set of 5 validation folds will be used. The validation set is used in order to check the models performance on the training dataset.
 
 ```{r evaluation-split}
 # Fix random generation, also see data split
@@ -731,8 +684,6 @@ set.seed(42)
 cv_folds <-
   vfold_cv(train_data,
            v=5, # number of folds
-           #strata = churn, # ensure the same proportion of the churn variable in every fold
-           #breaks = 4
            )
 ```
 
@@ -757,7 +708,7 @@ churn_rec <-
 
 ```
 
-These variables with respective roles will be used by our recipe:
+These variables with their respective roles will be used by our recipe:
 
 ```{r show-recipe}
 summary(churn_rec)
@@ -783,7 +734,7 @@ glimpse(prepped_data)
 <!-- ``` -->
 
 The recipe is prepared such that the churn variable serves as the outcome which the model should predict.
-We can see that `r text_spec("feature_5", color = "red")` has been removed. This happened by the step_corr() function in the recipe meaning feature_5 correlates with another feature and is not providing additional useful information in model training.
+We can see that `r text_spec("feature_5", color = "red")` has been removed. This happened by the step_corr() function in the recipe meaning feature_5 correlates strongly with another feature and is not providing additional useful information in model training.
 
 
 # Model - XGBoost
@@ -807,7 +758,7 @@ xgb_spec
 
 ## Workflow
 
-Next we create a workflow object to combine the recipe `r text_spec("churn_rec", color = "red") with our model in **Model execution**.
+Next we create a workflow object to combine the recipe `r text_spec("churn_rec", color = "red")` with our model in **Model execution**.
 
 ```{r workflow}
 # workflow pipeline
@@ -890,16 +841,21 @@ Overall our model has a high rate of true positives but (as we have seen already
 We also visualize the ROC:
 
 ```{r roc-curve}
+
+roc_xgb_pred <-
 xgb_pred %>% 
   group_by(id) %>% # id contains our folds
-  roc_curve(churn, .pred_0) %>% 
+  roc_curve(churn, .pred_0)
+
+roc_xgb_pred %>% 
   autoplot() +
   labs(
     title = "ROC curve",
     subtitle = "XGB model",
     x = "False positive rate (1- specificity)",
     y = "True positive rate (sensitivity)",
-    color = "Folds")
+    color = "Folds") 
+
 ```
 
 The ROC curve looks really good, but we need to remember that the rate of predicting true negatives (specificity) is still low.
@@ -1040,17 +996,20 @@ log_pred %>%
     x = "Truth",
     y = "Prediction"
   )
-# 
-# log_pred %>% 
-#   group_by(id) %>% # id contains our folds
-#   roc_curve(churn, .pred_0) %>% 
-#   autoplot() +
-#   labs(
-#     title = "ROC curve",
-#     subtitle = "LOG model",
-#     x = "False positive rate (1- specificity)",
-#     y = "True positive rate (sensitivity)",
-#     color = "Folds")
+
+roc_log_pred <-
+log_pred %>%
+  group_by(id) %>% # id contains our folds
+  roc_curve(churn, .pred_0)
+
+roc_log_pred %>% 
+  autoplot() +
+  labs(
+    title = "ROC curve",
+    subtitle = "LOG model",
+    x = "False positive rate (1- specificity)",
+    y = "True positive rate (sensitivity)",
+    color = "Folds")
 
 ```
 
@@ -1074,16 +1033,19 @@ rf_pred %>%
     y = "Prediction"
   )
 
-# rf_pred %>% 
-#   group_by(id) %>% # id contains our folds
-#   roc_curve(churn, .pred_0) %>% 
-#   autoplot() +
-#   labs(
-#     title = "ROC curve",
-#     subtitle = "RF model",
-#     x = "False positive rate (1- specificity)",
-#     y = "True positive rate (sensitivity)",
-#     color = "Folds")
+roc_rf_pred <-
+rf_pred %>%
+  group_by(id) %>% # id contains our folds
+  roc_curve(churn, .pred_0)
+
+roc_rf_pred %>% 
+  autoplot() +
+  labs(
+    title = "ROC curve",
+    subtitle = "RF model",
+    x = "False positive rate (1- specificity)",
+    y = "True positive rate (sensitivity)",
+    color = "Folds")
 
 
 ```
@@ -1107,16 +1069,19 @@ knn_pred %>%
     y = "Prediction"
   )
 
-# knn_pred %>% 
-#   group_by(id) %>% # id contains our folds
-#   roc_curve(churn, .pred_0) %>% 
-#   autoplot() +
-#   labs(
-#     title = "ROC curve",
-#     subtitle = "KNN model",
-#     x = "False positive rate (1- specificity)",
-#     y = "True positive rate (sensitivity)",
-#     color = "Folds")
+roc_knn_pred <-
+knn_pred %>%
+  group_by(id) %>% # id contains our folds
+  roc_curve(churn, .pred_0)
+
+roc_knn_pred %>% 
+  autoplot() +
+  labs(
+    title = "ROC curve",
+    subtitle = "KNN model",
+    x = "False positive rate (1- specificity)",
+    y = "True positive rate (sensitivity)",
+    color = "Folds")
 ```
 
 We can see that our xgboost classification algorithm performed the best out of all models so far, considering specificity and the confusion matrix.
@@ -1135,7 +1100,7 @@ smote_data <-
 
 table(smote_data$churn)
 ```
-The data ist still imbalanced, but not as much as before.
+The data is still imbalanced, but not as much as before.
 
 We will also need to create a new evaluation set with the adjusted dataset.
 ```{r new-evaluation-split}
@@ -1144,13 +1109,11 @@ set.seed(42)
 # generate the cross validation set
 cv_folds <-
   vfold_cv(smote_data,
-           v=6, # number of folds
-           # strata = churn, # ensure the same proportion of the churn variable in every fold
-           # breaks = 4
+           v=5, # number of folds
            )
 ```
 
-Now all we have to do is perform hyperparameter tuning our xgboost algorithm to select the best values to maximize specificity.
+Now we will perform hyperparameter tuning on our xgboost algorithm to select the best values to maximize the specificity.
 
 ## Model specification
 
@@ -1161,7 +1124,7 @@ We also adjust for the rest of the imbalance by using `r text_spec("scale_pos_we
 xgb_tuned_spec <-
   boost_tree(
       mtry = tune(), # number (or proportion) of predictors
-      trees = 100, # number of decision trees. For testing, we can leave it at a lower value
+      trees = 100, # number of decision trees.
       min_n = tune(), # minimum number of data points in a node required to split
       tree_depth = tune(), # maximum splits (depth of decision trees)
       learn_rate = tune(), # adaption rate over iterations
@@ -1250,7 +1213,7 @@ xgb_tuned_res %>%
 
 We visualize the specificty for every hyperparameter which gives us a first impression of how well specific values perform. 
 
-```{r roc-auc}
+```{r spec-by-hyperparameters}
 
 # Credits for the code chunk goes to:
 # https://htmlpreview.github.io/?https://github.com/kirenz/tidymodels-in-r/blob/main/05-tidymodels-xgboost-tuning.html
@@ -1359,9 +1322,12 @@ xgb_tuned_pred %>%
     y = "Prediction"
   )
 
+roc_xgb_tuned_pred <-
 xgb_tuned_pred %>% 
   group_by(id) %>% # id contains our folds
-  roc_curve(churn, .pred_0) %>% 
+  roc_curve(churn, .pred_0)
+
+roc_xgb_tuned_pred %>% 
   autoplot()  +
   labs(
     title = "ROC curve",
@@ -1371,7 +1337,9 @@ xgb_tuned_pred %>%
     color = "Folds")
 ```
 
-We can see that our tuned model outperformed every other model regarding the specificity. Ideally we would achieve around 85-90%, but we already tuned the model to obtain the best hyperparameters.
+We can see that our tuned model outperformed every other model regarding the specificity.
+Note that the value seems to be good which is a direct result of using the `r text_spec("smote()", color = "red")` function to rebalance the given data. The performance regarding specificity will change on the test data since it will still be imbalanced.
+The reason we used the `r text_spec("smote()", color = "red")` function is to see which hyperparameters perform the best.
 
 
 # Last evaluation
@@ -1403,8 +1371,11 @@ last_fit_xgb %>%
 ```
 
 ```{r confusion-matrix-last-fit, echo=FALSE}
+last_fit_xgb_pred <-
 last_fit_xgb %>%
-  collect_predictions() %>% 
+  collect_predictions()
+
+last_fit_xgb_pred %>% 
   conf_mat(churn, .pred_class) %>% 
   autoplot(type = "heatmap")  +
   labs(
@@ -1413,20 +1384,23 @@ last_fit_xgb %>%
     x = "Truth",
     y = "Prediction"
   )
-# 
-# last_fit_xgb %>% 
-#   group_by(id) %>% # id contains our folds
-#   roc_curve(churn, .pred_0) %>% 
-#   autoplot()  +
-#   labs(
-#     title = "ROC curve",
-#     subtitle = "XGB tuned model on test data",
-#     x = "False positive rate (1- specificity)",
-#     y = "True positive rate (sensitivity)",
-#     color = "Folds")
+
+roc_last_fit_xgb <-
+last_fit_xgb_pred %>%
+  group_by(id) %>% # id contains our folds
+  roc_curve(churn, .pred_0)
+
+roc_last_fit_xgb %>% 
+  autoplot()  +
+  labs(
+    title = "ROC curve",
+    subtitle = "XGB tuned model on test data",
+    x = "False positive rate (1- specificity)",
+    y = "True positive rate (sensitivity)",
+    color = "Folds")
 ```
 
-The specificity is at a low value which means our model did not predict the churn label well regarding the test data.
+As expected the specificity is not as high as it was with our training data. It still improved from 0.378 to 0.415 by using hyperparamater tuning. Since it is still at a low value, our model did not predict the churn label well regarding the test data.
 
 ```{r vip-features, warning=FALSE}
 
@@ -1440,13 +1414,14 @@ ggplotly(vip_features)
 
 ```
 
-We can see that the most important feature for the prediction was  `r text_spec("feature_3", color = "red")`.
+We can see that the most important feature for the prediction was `r text_spec("feature_3", color = "red")`.
+Interesting is the relevance of `r text_spec("feature_14", color = "red")` which we did not identify as relevant before.
 The others have a relatively low importance which is an indicator that feature engineering would have given better results on the test data.
 
 The results point towards an underfitting scenario where our model is not complex enough to accurately predict the churn with the given data. In order to improve the performance further, custom performance metrics or new features could be generated.
 Another step would be to use different models (like neural networks) or an ensemble of models. 
 
-Even if the model predicts only about 30% of the actual churning customers, We can still use it for our use case since the cost for not guessing correctly is low. Also any contract labelled as **churning** is better than no predictive information.
+Even if the model predicts only about 40% of the actual churning customers, We can still use it for our use case since the cost for not guessing correctly is low. Also any contract labelled as **churning** is better than no predictive information.
 
 # Predictions on new, unlabeled data
 
@@ -1457,7 +1432,7 @@ In order to make predictions, we need to create an object of class model_fit of 
 ```{r predictions, message=FALSE, warning=FALSE}
 # create final model
 final_model <-
-  fit(final_xgb_Wf, df_train_new)
+  fit(final_xgb_Wf, df_train)
 
 # create predictions
 predictions <-
